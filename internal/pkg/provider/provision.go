@@ -46,7 +46,6 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 	return []provision.Step[*resources.Machine]{
 		provision.NewStep("assignMachineUUID", p.assignMachineUUID),
 		provision.NewStep("createSchematic", p.createSchematic),
-		provision.NewStep("createHostnamePatch", p.createHostnamePatch),
 		provision.NewStep("instantiateVM", p.instantiateVM),
 		provision.NewStep("waitForVM", p.waitForVM),
 	}
@@ -205,6 +204,7 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 
 		rendered := RenderTemplate(RenderInput{
 			VMName:          hostname,
+			MachineUUID:     GetMachineUUID(pctx.State),
 			ImageName:       imageResult.Image.Name,
 			Datastore:       data.Datastore,
 			Resources:       resolvedResources,

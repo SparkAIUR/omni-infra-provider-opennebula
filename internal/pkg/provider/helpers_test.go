@@ -254,6 +254,7 @@ func TestRenderTemplateAndRedaction(t *testing.T) {
 
 	rendered := RenderTemplate(RenderInput{
 		VMName:          "worker-01",
+		MachineUUID:     "123e4567-e89b-12d3-a456-426614174000",
 		ImageName:       "talos-image",
 		Datastore:       "fast-ssd",
 		Resources:       ResolvedResources{CPU: "2", VCPU: 2, MemoryMiB: 4096, RootDiskGiB: 40},
@@ -292,6 +293,10 @@ func TestRenderTemplateAndRedaction(t *testing.T) {
 
 	if !strings.Contains(rendered, `MODEL = "e1000"`) {
 		t.Fatalf("expected nic model rendering, got %q", rendered)
+	}
+
+	if !strings.Contains(rendered, `UUID = "123e4567-e89b-12d3-a456-426614174000"`) {
+		t.Fatalf("expected machine UUID rendering, got %q", rendered)
 	}
 
 	redacted := RedactTemplateForLog(rendered)

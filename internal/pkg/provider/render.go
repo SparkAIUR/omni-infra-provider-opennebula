@@ -12,6 +12,7 @@ import (
 // RenderInput is the fully resolved template-render input.
 type RenderInput struct {
 	VMName          string
+	MachineUUID     string
 	ImageName       string
 	Datastore       string
 	Resources       ResolvedResources
@@ -57,10 +58,14 @@ func RenderTemplate(input RenderInput) string {
 	builder.WriteString("OS = [\n")
 	builder.WriteString(fmt.Sprintf("  FIRMWARE = %q,\n", strings.ToUpper(input.FirmwareMode)))
 	if input.SecureBoot {
-		builder.WriteString("  FIRMWARE_SECURE = \"YES\"\n")
+		builder.WriteString("  FIRMWARE_SECURE = \"YES\"")
 	} else {
-		builder.WriteString("  FIRMWARE_SECURE = \"NO\"\n")
+		builder.WriteString("  FIRMWARE_SECURE = \"NO\"")
 	}
+	if input.MachineUUID != "" {
+		builder.WriteString(fmt.Sprintf(",\n  UUID = %q", input.MachineUUID))
+	}
+	builder.WriteString("\n")
 	builder.WriteString("]\n\n")
 
 	builder.WriteString("DISK = [\n")
