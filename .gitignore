@@ -3,6 +3,11 @@
 # Generated on 2025-11-17T08:17:36Z by kres e1d6dac.
 
 _out
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
 refs/*
 !refs/docs/
 !refs/docs/**
