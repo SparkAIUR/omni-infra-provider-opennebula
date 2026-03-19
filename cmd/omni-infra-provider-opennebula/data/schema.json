@@ -80,6 +80,12 @@
           "ip": {
             "type": "string"
           },
+          "mask": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
           "gateway": {
             "type": "string"
           },

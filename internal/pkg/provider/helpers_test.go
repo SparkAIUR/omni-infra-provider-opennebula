@@ -91,6 +91,19 @@ func TestValidateProviderDataRejectsInvalidCombinations(t *testing.T) {
 			want: "manual networkContextMode requires staticNetwork entries",
 		},
 		{
+			name: "manual network without mask",
+			data: ProviderData{
+				Flavor:             "small",
+				Networks:           []NetworkRef{{Name: "prod-lan"}},
+				NetworkContextMode: "manual",
+				StaticNetwork: []StaticNIC{{
+					Name: "eth0",
+					IP:   "172.22.0.200",
+				}},
+			},
+			want: "staticNetwork[0].mask is required",
+		},
+		{
 			name: "gpu disabled",
 			data: ProviderData{
 				Flavor:   "small",
@@ -210,6 +223,33 @@ func TestValidateProviderDataResolvesProfilesAndModes(t *testing.T) {
 	}
 }
 
+func TestValidateProviderDataDerivesManualNetwork(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig()
+	cfg.OpenNebula.AllowedNetworks = []string{"manual-lan"}
+
+	data := &ProviderData{
+		SchemaVersion:      "v1alpha2",
+		Flavor:             "small",
+		NetworkContextMode: "manual",
+		Networks:           []NetworkRef{{Name: "manual-lan"}},
+		StaticNetwork: []StaticNIC{{
+			Name: "eth0",
+			IP:   "172.22.0.200",
+			Mask: "255.255.255.0",
+		}},
+	}
+
+	if err := ValidateProviderData(data, cfg); err != nil {
+		t.Fatalf("ValidateProviderData() error = %v", err)
+	}
+
+	if data.StaticNetwork[0].Network != "172.22.0.0" {
+		t.Fatalf("expected derived network 172.22.0.0, got %q", data.StaticNetwork[0].Network)
+	}
+}
+
 func TestResolveResources(t *testing.T) {
 	t.Parallel()
 
@@ -269,14 +309,32 @@ func TestRenderTemplateAndRedaction(t *testing.T) {
 		},
 		AdditionalDisks: []AdditionalDisk{{Name: "state", SizeGiB: 20, Format: "qcow2"}},
 		ContextKV: map[string]string{
-			"NETWORK":            "YES",
+			"ETH0_GATEWAY":       "172.22.0.1",
+			"ETH0_IP":            "172.22.0.200",
+			"ETH0_METHOD":        "static",
+			"ETH0_MASK":          "255.255.255.0",
+			"ETH0_NETWORK":       "172.22.0.0",
+			"NETWORK":            "NO",
+			"SET_HOSTNAME":       "worker-01",
 			"USER_DATA":          "sensitive",
 			"USER_DATA_ENCODING": "base64",
 		},
 	})
 
-	if !strings.Contains(rendered, "NETWORK = \"YES\"") {
+	if !strings.Contains(rendered, "NETWORK = \"NO\"") {
 		t.Fatalf("expected NETWORK context, got %q", rendered)
+	}
+
+	if !strings.Contains(rendered, "ETH0_MASK = \"255.255.255.0\"") {
+		t.Fatalf("expected manual network mask rendering, got %q", rendered)
+	}
+
+	if !strings.Contains(rendered, "ETH0_NETWORK = \"172.22.0.0\"") {
+		t.Fatalf("expected manual network CIDR rendering, got %q", rendered)
+	}
+
+	if !strings.Contains(rendered, "ETH0_METHOD = \"static\"") {
+		t.Fatalf("expected manual network method rendering, got %q", rendered)
 	}
 
 	if !strings.Contains(rendered, "TYPE = \"none\"") {

@@ -74,8 +74,8 @@ networks:
 
 	if got := client.LastInstantiate.ExtraTemplate; strings.Contains(got, "USER_DATA") {
 		t.Fatalf("expected OpenNebula context without USER_DATA, got %q", got)
-	} else if !strings.Contains(got, "HOSTNAME = \"request-01\"") {
-		t.Fatalf("expected rendered HOSTNAME context, got %q", got)
+	} else if !strings.Contains(got, "SET_HOSTNAME = \"request-01\"") {
+		t.Fatalf("expected rendered SET_HOSTNAME context, got %q", got)
 	}
 
 	if got, ok := pctx.MachineRequestStatus.Metadata().Labels().Get(omnires.LabelMachineInfraID); !ok || got == "" {

@@ -6,6 +6,7 @@ package provider
 
 import (
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/config"
@@ -80,6 +81,10 @@ func ValidateProviderData(data *ProviderData, cfg config.Config) error {
 
 	if data.NetworkContextMode == "manual" && len(data.StaticNetwork) == 0 {
 		return fmt.Errorf("manual networkContextMode requires staticNetwork entries")
+	}
+
+	if err := normalizeStaticNetwork(data); err != nil {
+		return err
 	}
 
 	if data.Firmware.Mode == "" {
@@ -203,6 +208,49 @@ func validateImagePolicy(data *ProviderData, cfg config.Config) error {
 		}
 	default:
 		return fmt.Errorf("unsupported imagePolicy.mode %q", data.ImagePolicy.Mode)
+	}
+
+	return nil
+}
+
+func normalizeStaticNetwork(data *ProviderData) error {
+	if data.NetworkContextMode != "manual" {
+		return nil
+	}
+
+	for index := range data.StaticNetwork {
+		nic := &data.StaticNetwork[index]
+
+		if nic.IP == "" {
+			continue
+		}
+
+		if parsedIP := net.ParseIP(strings.TrimSpace(nic.IP)).To4(); parsedIP == nil {
+			return fmt.Errorf("staticNetwork[%d].ip must be a valid IPv4 address", index)
+		}
+
+		if nic.Mask == "" {
+			return fmt.Errorf("staticNetwork[%d].mask is required for manual IPv4 networking", index)
+		}
+
+		if parsedMask := net.ParseIP(strings.TrimSpace(nic.Mask)).To4(); parsedMask == nil {
+			return fmt.Errorf("staticNetwork[%d].mask must be a valid IPv4 netmask", index)
+		}
+
+		if nic.Network != "" {
+			if parsedNetwork := net.ParseIP(strings.TrimSpace(nic.Network)).To4(); parsedNetwork == nil {
+				return fmt.Errorf("staticNetwork[%d].network must be a valid IPv4 network", index)
+			}
+
+			continue
+		}
+
+		derivedNetwork, err := deriveNetworkCIDR(nic.IP, nic.Mask)
+		if err != nil {
+			return fmt.Errorf("staticNetwork[%d]: %w", index, err)
+		}
+
+		nic.Network = derivedNetwork
 	}
 
 	return nil

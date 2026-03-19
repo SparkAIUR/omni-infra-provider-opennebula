@@ -8,6 +8,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"text/template"
 	"time"
@@ -176,7 +177,7 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 
 		hostname := pctx.State.TypedSpec().Value.VmName
 		contextKV := map[string]string{
-			"HOSTNAME": hostname,
+			"SET_HOSTNAME": hostname,
 		}
 		if data.NetworkContextMode == "manual" {
 			contextKV["NETWORK"] = "NO"
@@ -184,6 +185,13 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 				prefix := fmt.Sprintf("ETH%d", index)
 				if nic.IP != "" {
 					contextKV[prefix+"_IP"] = nic.IP
+					contextKV[prefix+"_METHOD"] = "static"
+				}
+				if nic.Mask != "" {
+					contextKV[prefix+"_MASK"] = nic.Mask
+				}
+				if nic.Network != "" {
+					contextKV[prefix+"_NETWORK"] = nic.Network
 				}
 				if nic.Gateway != "" {
 					contextKV[prefix+"_GATEWAY"] = nic.Gateway
@@ -374,4 +382,20 @@ func resolvedPlacement(data ProviderData) ResolvedPlacement {
 		VMGroupName:       data.Placement.VMGroup,
 		VMGroupRole:       data.Placement.Role,
 	}
+}
+
+func deriveNetworkCIDR(ipAddress, mask string) (string, error) {
+	ip := net.ParseIP(strings.TrimSpace(ipAddress)).To4()
+	if ip == nil {
+		return "", fmt.Errorf("invalid IPv4 address %q", ipAddress)
+	}
+
+	maskIP := net.ParseIP(strings.TrimSpace(mask)).To4()
+	if maskIP == nil {
+		return "", fmt.Errorf("invalid IPv4 mask %q", mask)
+	}
+
+	ipNet := net.IPNet{IP: ip.Mask(net.IPMask(maskIP)), Mask: net.IPMask(maskIP)}
+
+	return ipNet.IP.String(), nil
 }

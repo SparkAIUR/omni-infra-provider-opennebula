@@ -59,6 +59,8 @@ type StaticNIC struct {
 	Name    string   `json:"name" yaml:"name"`
 	MAC     string   `json:"mac,omitempty" yaml:"mac,omitempty"`
 	IP      string   `json:"ip,omitempty" yaml:"ip,omitempty"`
+	Mask    string   `json:"mask,omitempty" yaml:"mask,omitempty"`
+	Network string   `json:"network,omitempty" yaml:"network,omitempty"`
 	Gateway string   `json:"gateway,omitempty" yaml:"gateway,omitempty"`
 	DNS     []string `json:"dns,omitempty" yaml:"dns,omitempty"`
 }
