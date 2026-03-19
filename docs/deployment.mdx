@@ -71,4 +71,4 @@ The filenames are historical; both are OpenNebula runtime examples.
 
 ## Operator-managed prerequisites
 
-The v1 provider assumes the base Talos image already exists in OpenNebula. Automatic image import is not part of the first delivery.
+The provider can now import a missing Talos image when `imageManagement.importOnMiss` is enabled and artifact/checksum URLs are configured. Preloading images is still supported and remains the fastest startup path.

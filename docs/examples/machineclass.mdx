@@ -87,13 +87,12 @@ spec:
       placement:
         host: compute-01
         vmGroup: control-plane
-        role: master
       additionalDisks:
         - name: state
           sizeGiB: 20
           format: qcow2
       lifecycle:
-        deleteMode: normal
+        deleteMode: terminate
       graphics:
         enabled: false
 ```

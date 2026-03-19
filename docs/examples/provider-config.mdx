@@ -37,7 +37,7 @@ imageManagement:
   requireChecksum: true
   artifactURLTemplate: "https://artifacts.example.com/talos/{{ .TalosVersion }}/{{ .Arch }}/disk.qcow2"
   checksumURLTemplate: "https://artifacts.example.com/talos/{{ .TalosVersion }}/{{ .Arch }}/disk.qcow2.sha256"
-  retainGenerations: 1
+  retainGenerations: 2
   pollInterval: 5s
   importTimeout: 20m
 placementPolicies:
@@ -54,7 +54,7 @@ networkProfiles:
 storagePolicies:
   defaultDatastore: "ssd-primary"
 observability:
-  listenAddress: ":8080"
+  listenAddress: ":9977"
   metricsPath: "/metrics"
   healthPath: "/healthz"
   readyPath: "/readyz"

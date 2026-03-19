@@ -55,13 +55,12 @@ placement:
   host: compute-01
   cluster: cluster-a
   vmGroup: control-plane
-  role: master
 additionalDisks:
   - name: state
     sizeGiB: 20
     format: qcow2
 lifecycle:
-  deleteMode: normal
+  deleteMode: terminate
 tags:
   role: worker
 gpu:
@@ -79,7 +78,7 @@ gpu:
 - `manual` networking requires `staticNetwork`.
 - `imagePolicy.mode` supports `reuse-only` and `reuse-or-import`.
 - `placement` and `additionalDisks` are policy-gated by the provider runtime config.
-- `lifecycle.deleteMode` supports `normal` and `hard`.
+- `lifecycle.deleteMode` supports `terminate` and `hard`. `normal` is accepted as a compatibility alias.
 - `gpu` remains schema-visible but is rejected unless the feature flag enables it.
 - Hostname is derived from the Omni request ID and is not user-configurable.
 
