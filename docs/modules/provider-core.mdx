@@ -17,7 +17,6 @@ The provider core owns the Omni-facing orchestration logic.
 - `internal/pkg/provider/validation.go`
 - `internal/pkg/provider/naming.go`
 - `internal/pkg/provider/hostname.go`
-- `internal/pkg/provider/bootstrap.go`
 - `internal/pkg/provider/render.go`
 - `internal/pkg/provider/provision.go`
 - `internal/pkg/provider/deprovision.go`
@@ -26,9 +25,9 @@ The provider core owns the Omni-facing orchestration logic.
 ## Contracts
 
 - Canonical VM names and Talos hostnames are derived from the Omni request ID.
-- The provider generates a managed hostname patch through Omni before VM instantiation.
-- `USER_DATA` is base64-encoded Talos join config plus hostname config.
-- Logs redact `USER_DATA`.
+- The provider renders Talos-compatible OpenNebula `CONTEXT`, including `SET_HOSTNAME` and manual-network `ETH*_` values when requested.
+- Omni-generated schematic and kernel args carry the join path used by the validated flow.
+- Logs must never expose raw auth values or sensitive rendered template fields.
 
 ## Change notes
 

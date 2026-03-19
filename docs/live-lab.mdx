@@ -1,0 +1,107 @@
+---
+title: Live lab
+description: The single-host OpenNebula, Omni, and provider workflow that was validated end to end.
+---
+
+# Live lab
+
+This page documents the single-host live-lab workflow that was validated for this repository.
+
+## Validated environment
+
+- Ubuntu `24.04.3`
+- OpenNebula `7.0.1`
+- Omni `1.6.0`
+- Talos `1.12.4`
+- `omni-infra-provider-opennebula` running as a standalone container
+- software-emulated qemu on the same host as OpenNebula
+
+## Layout
+
+The validated host ran:
+
+- OpenNebula control plane and local VM host
+- Omni single-host container deployment
+- the OpenNebula provider container
+
+The original `lxc` fixtures remained intact while a parallel qemu VM path was used for Talos validation.
+
+## Host preparation
+
+1. Ensure the OpenNebula VM path can boot a guest before involving Omni.
+2. Keep the Talos bridge address persistent across VM teardown and recreation.
+3. Verify the Talos template CPU model is compatible with the guest image.
+
+Important lab finding:
+
+- The validated host required the template CPU model to be `Westmere`.
+- The bridge gateway address had to persist on `onebr1`; otherwise Talos booted but never reached Omni.
+
+## Omni deployment
+
+Deploy Omni `1.6.0` on the same host using the single-host container topology and bind it to a temporary public hostname such as `*.sslip.io` or `*.nip.io`.
+
+Before starting the provider:
+
+- verify HTTPS works end to end
+- create a dedicated Omni service account for the provider
+- record the Omni endpoint and key outside the repository
+
+## Provider deployment
+
+Run the provider as a standalone container with:
+
+- bind-mounted `config.yaml`
+- environment-based secrets
+- a restart policy
+- observability port exposure for `/healthz`, `/readyz`, and `/metrics`
+
+The validated image form was:
+
+```text
+docker.io/nudevco/omni-infra-provider-opennebula:<tag>
+```
+
+## OpenNebula assets
+
+The validated path used:
+
+- a Talos-capable qemu template
+- a reusable Talos image in the OpenNebula datastore
+- a bridge-backed OpenNebula network for `auto` mode
+- a MAC-only bridge-backed OpenNebula network for manual-context experiments
+
+## Validated smoke results
+
+Successful on the live host:
+
+- provider registration
+- control-plane bootstrap
+- worker scale-out
+- worker scale-down
+- full cluster delete
+- provider restart during provisioning without duplicate VM creation
+- provider-managed image import-on-miss
+- existing-image reuse
+- observability endpoint checks
+
+## Known blocker on this lab
+
+`networkContextMode: manual` remains blocked on this exact environment.
+
+The provider renders the documented Talos OpenNebula manual context correctly, but on the validated single-host emulated qemu lab the guest still never became reachable on the configured static IP and never linked into Omni.
+
+Treat manual networking as a compatibility item that must be revalidated on your target OpenNebula and hypervisor environment.
+
+## Repeatable operator flow
+
+Use the repo-local `.assh` helpers to:
+
+- list OpenNebula templates, images, and networks
+- render a provider config from the repo template
+- run the smoke workflow wrapper
+
+See:
+
+- `.assh/README.md`
+- `.assh/scripts/README.md`

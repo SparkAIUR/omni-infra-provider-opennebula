@@ -5,21 +5,22 @@ description: OpenNebula infrastructure provider for Omni-managed Talos nodes.
 
 # Omni infrastructure provider for OpenNebula
 
-`omni-infra-provider-opennebula` is an Omni infrastructure provider that provisions Talos nodes as OpenNebula virtual machines. It replaces the libvirt-specific path with an OpenNebula-native flow built around template instantiation, OpenNebula `CONTEXT`, and minimal base64 `USER_DATA`.
+`omni-infra-provider-opennebula` is an Omni infrastructure provider that provisions Talos nodes as OpenNebula virtual machines. It replaces the libvirt-specific path with an OpenNebula-native flow built around template instantiation, OpenNebula `CONTEXT`, and Omni-generated schematic/kernel args.
 
 ## What the provider does
 
 - Registers with Omni as provider ID `opennebula`.
 - Validates machine-class `providerData` against the OpenNebula v1alpha1 contract.
 - Resolves template, image, datastore, and network inputs before instantiation.
-- Generates a Talos schematic ID and a managed hostname patch for Omni.
+- Generates a Talos schematic ID and Talos-compatible hostname/context metadata.
 - Instantiates an OpenNebula VM and persists enough state for restart-safe deprovisioning.
 - Deprovisions OpenNebula VMs idempotently.
 
 ## Public entry points
 
 - Start with [/getting-started](/getting-started) for local setup.
-- Use [/deployment](/deployment) for the provider runtime config and Kubernetes deployment flow.
+- Use [/deployment](/deployment) for runtime topology guidance.
+- Use [/live-lab](/live-lab) for the validated single-host deployment path.
 - Use [/api/provider-data](/api/provider-data) when defining machine classes.
 - Use [/runbooks/smoke-test](/runbooks/smoke-test) for end-to-end validation.
 

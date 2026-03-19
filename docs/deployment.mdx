@@ -1,11 +1,28 @@
 ---
 title: Deployment
-description: Runtime config contract and Kubernetes deployment patterns for the provider.
+description: Supported runtime topologies and the validated single-host deployment path.
 ---
 
 # Deployment
 
-This page covers the provider runtime contract and the supported Kubernetes deployment patterns for running the provider in-cluster.
+This page covers the provider runtime contract and the deployment topologies currently supported by this repository.
+
+## Validated topology
+
+The live-validated path is a single Ubuntu host running:
+
+- OpenNebula `7.0.1`
+- Omni `1.6.0`
+- `omni-infra-provider-opennebula` as a standalone container
+
+This topology is documented in detail at [/live-lab](/live-lab).
+
+## Production stance
+
+- Run a single active provider instance per OpenNebula trust boundary.
+- Keep provider config on disk and secrets in environment variables or an env-file.
+- Expose `/healthz`, `/readyz`, and `/metrics`.
+- Prefer provider-managed image import only when artifact and checksum URLs are configured.
 
 ## Container image
 
@@ -21,6 +38,7 @@ docker.io/nudevco/omni-infra-provider-opennebula:<tag>
 - Omni service-account key
 - OpenNebula endpoint in the provider config file
 - One OpenNebula auth mode
+- Allowed templates, datastores, and networks that match your OpenNebula inventory
 
 ## OpenNebula auth
 
@@ -67,8 +85,25 @@ This repository ships two deployment examples:
 - `test/kubernetes-deployment.socket.yaml`: session-token auth example
 - `test/kubernetes-deployment.ssh.yaml`: username/password auth example
 
-The filenames are historical; both are OpenNebula runtime examples.
+The filenames are historical; both are OpenNebula runtime examples. They remain useful for Kubernetes-based deployments, but they were not the primary live-validated path.
+
+## Live-validated standalone container pattern
+
+The provider was validated as a standalone container with:
+
+- bind-mounted `config.yaml`
+- env-file based secrets
+- Docker restart policy
+- local observability port exposure
+
+Use [/live-lab](/live-lab) for the exact sequence and operator workflow.
 
 ## Operator-managed prerequisites
 
-The provider can now import a missing Talos image when `imageManagement.importOnMiss` is enabled and artifact/checksum URLs are configured. Preloading images is still supported and remains the fastest startup path.
+The provider can import a missing Talos image when `imageManagement.importOnMiss` is enabled and artifact/checksum URLs are configured. Preloading images is still supported and remains the fastest startup path.
+
+Additional live-lab prerequisites:
+
+- OpenNebula VM path must be functional on the target host.
+- The Talos template CPU model must be compatible with the guest image. The validated lab required `Westmere`.
+- If you use a temporary public hostname such as `sslip.io` or `nip.io`, verify TLS issuance and firewall rules before starting the provider.

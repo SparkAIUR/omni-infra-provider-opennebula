@@ -11,7 +11,7 @@ The provider is a small Go service that Omni calls through the infrastructure-pr
 
 1. Omni sends a machine request with `providerData`.
 2. The provider validates the request and resolves a VM shape.
-3. The provider generates a Talos schematic ID and a hostname patch.
+3. The provider generates a Talos schematic ID and derives Talos-compatible hostname metadata.
 4. The provider resolves the target OpenNebula template, image, datastore, and networks.
 5. The provider renders an extra template with `CPU`, `VCPU`, `MEMORY`, `DISK`, `NIC`, `OS`, `GRAPHICS`, and `CONTEXT`.
 6. The provider instantiates the VM through OpenNebula.
@@ -26,7 +26,7 @@ Owns typed runtime config, validation, defaulting, and auth resolution from envi
 
 ## `internal/pkg/provider`
 
-Owns public request validation, resource resolution, VM naming, hostname patch generation, Talos bootstrap assembly, template rendering, state persistence, and deprovision logic.
+Owns public request validation, resource resolution, VM naming, Talos-compatible context rendering, state persistence, and deprovision logic.
 
 ## `internal/pkg/opennebula`
 
@@ -51,5 +51,5 @@ See [/api/state-schema](/api/state-schema) for the exact schema.
 
 - The config file stores the OpenNebula endpoint and defaults, not secrets.
 - Credentials come from environment variables.
-- Rendered template logs redact `USER_DATA`.
+- Rendered template logging must redact sensitive values if present.
 - The repo’s private context store and private notes stay out of `docs/`.

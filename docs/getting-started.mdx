@@ -31,6 +31,16 @@ To build the container image locally:
 make image-omni-infra-provider-opennebula
 ```
 
+## Fastest path to a real lab
+
+If you want the shortest path to a real end-to-end environment instead of only local builds:
+
+1. Prepare a single Ubuntu host with OpenNebula and a working VM-capable hypervisor path.
+2. Deploy Omni `1.6.0` on that host using the single-host container topology.
+3. Run the provider as a standalone container on the same host.
+4. Use the examples in [/examples/provider-config](/examples/provider-config) and [/examples/machineclass](/examples/machineclass).
+5. Follow [/live-lab](/live-lab) and then [/runbooks/smoke-test](/runbooks/smoke-test).
+
 ## Runtime config
 
 The provider reads a YAML config file with these top-level sections:
@@ -59,3 +69,13 @@ If both are set, the session token wins.
 2. Create a machine class using the examples in [/examples/machineclass](/examples/machineclass).
 3. Apply or update a cluster template that references the OpenNebula machine class.
 4. Confirm the provider creates a VM in OpenNebula and the node joins Omni.
+
+## Compatibility note
+
+The live-validated compatibility set today is:
+
+- Omni `1.6.0`
+- Talos `1.12.4`
+- OpenNebula `7.0.1`
+
+On the single-host emulated qemu lab, `networkContextMode: auto` validated successfully. `networkContextMode: manual` remains a known blocker on that exact environment and is documented in [/runbooks/smoke-test](/runbooks/smoke-test).

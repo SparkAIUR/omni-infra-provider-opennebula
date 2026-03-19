@@ -11,7 +11,7 @@
 - Provider ID: `opennebula`
 - Go module: `github.com/SparkAIUR/omni-infra-provider-opennebula`
 - Container image: `docker.io/nudevco/omni-infra-provider-opennebula:<tag>`
-- Bootstrap path: Talos OpenNebula platform using `CONTEXT` plus minimal base64 `USER_DATA`
+- Bootstrap path: Talos OpenNebula platform using OpenNebula `CONTEXT` plus Omni-generated schematic/kernel args
 - OpenNebula auth: prefer `OPENNEBULA_SESSION`, otherwise require `OPENNEBULA_USERNAME` and `OPENNEBULA_PASSWORD`
 - Private contextual knowledge tooling: typed Python CLI under `tools/ctx/`, managed by `uv`
 
@@ -26,6 +26,12 @@
 - Keep GOCA usage isolated in `internal/pkg/opennebula/`; the provider layer should only depend on normalized refs and lifecycle methods.
 - Rendered OpenNebula extra templates are safe to debug-log only after `USER_DATA` is redacted.
 - The repo Makefile needed a syntax fix before binary and image targets could run successfully.
+- OpenNebula image states `USED` and `USED_PERS` must be treated as reusable image states, not as import-required failures.
+- OpenNebula `7.0.1` on the live lab can keep deleted VMs visible as historical `DONE` records after they disappear from active inventory; deprovision convergence must treat `DONE` as terminal.
+- The single-host live lab required `onebr1` to keep `172.22.0.1/24` persistently assigned or Talos nodes would boot but never reach Omni.
+- The Talos OpenNebula platform uses `SET_HOSTNAME`, not `HOSTNAME`, for hostname configuration.
+- The single-host validated compatibility set is Omni `1.6.0`, Talos `1.12.4`, OpenNebula `7.0.1`, and software-emulated qemu with a `Westmere` CPU model override.
+- `networkContextMode: manual` remains unvalidated on that exact lab even when the provider emits the documented Talos OpenNebula manual context.
 
 ## To update as work progresses
 

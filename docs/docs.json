@@ -13,6 +13,7 @@
       "pages": [
         "index",
         "getting-started",
+        "live-lab",
         "architecture",
         "deployment",
         "contributing"
