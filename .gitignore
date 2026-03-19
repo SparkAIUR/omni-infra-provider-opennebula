@@ -3,4 +3,11 @@
 # Generated on 2025-11-17T08:17:36Z by kres e1d6dac.
 
 _out
-refs
+refs/*
+!refs/docs/
+!refs/docs/**
+!refs/RULES.md
+!refs/KB.md
+refs/docs/ctx/
+refs/tasks/
+refs/notes/
