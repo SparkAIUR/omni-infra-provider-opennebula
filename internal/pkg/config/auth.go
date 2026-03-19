@@ -36,3 +36,33 @@ func ResolveAuth() (AuthConfig, error) {
 		Password: password,
 	}, nil
 }
+
+// Mode returns the active auth mode without exposing raw secrets.
+func (cfg AuthConfig) Mode() string {
+	if cfg.Session != "" {
+		return "session"
+	}
+
+	if cfg.Username != "" && cfg.Password != "" {
+		return "username_password"
+	}
+
+	return "unset"
+}
+
+// Redacted returns a copy safe for structured logging and tests.
+func (cfg AuthConfig) Redacted() AuthConfig {
+	return AuthConfig{
+		Session:  redactIfSet(cfg.Session),
+		Username: redactIfSet(cfg.Username),
+		Password: redactIfSet(cfg.Password),
+	}
+}
+
+func redactIfSet(value string) string {
+	if value == "" {
+		return ""
+	}
+
+	return "REDACTED"
+}

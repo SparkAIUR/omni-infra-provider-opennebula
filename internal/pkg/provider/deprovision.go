@@ -6,7 +6,6 @@ package provider
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/siderolabs/omni/client/pkg/infra/provision"
@@ -19,26 +18,39 @@ import (
 
 // Deprovision implements infra.Provisioner.
 func (p *Provisioner) Deprovision(ctx context.Context, logger *zap.Logger, machine *resources.Machine, _ *infrares.MachineRequest) error {
+	start := time.Now()
+	err := p.deprovision(ctx, logger, machine)
+	p.observeDeprovision(err, time.Since(start))
+	return err
+}
+
+func (p *Provisioner) deprovision(ctx context.Context, logger *zap.Logger, machine *resources.Machine) error {
 	vmID := GetVMID(machine)
 	if vmID == 0 {
-		logger.Info("vm id is not set, nothing to delete")
+		provisionLogger(logger, machine, machine.Metadata().ID()).Info("vm id is not set, nothing to delete")
 		return nil
 	}
 
+	SetPhase(machine, "delete_requested")
 	if err := p.client.TerminateVM(ctx, vmID, p.config.Features.HardDelete); err != nil {
-		if isNotFoundError(err) {
-			logger.Info("vm already deleted", zap.Int("vm_id", vmID))
+		if opennebula.IsNotFoundError(err) {
+			provisionLogger(logger, machine, machine.Metadata().ID()).Info("vm already deleted", zap.Int("vm_id", vmID))
 			clearProvisionedState(machine)
-			SetPhase(machine, "deleted")
+			SetPhase(machine, "delete_complete")
 			return nil
 		}
 
-		return provision.NewRetryErrorf(10*time.Second, "terminate vm %d: %w", vmID, err)
+		class := opennebula.ClassifyError(err)
+		if opennebula.IsRetryableClass(class) {
+			return provision.NewRetryErrorf(10*time.Second, "terminate vm %d: %w", vmID, err)
+		}
+
+		return err
 	}
 
 	clearProvisionedState(machine)
-	SetPhase(machine, "deleted")
-	logger.Info("terminated opennebula vm", zap.Int("vm_id", vmID))
+	SetPhase(machine, "delete_complete")
+	provisionLogger(logger, machine, machine.Metadata().ID()).Info("terminated opennebula vm", zap.Int("vm_id", vmID))
 
 	return nil
 }
@@ -55,12 +67,4 @@ func clearProvisionedState(machine *resources.Machine) {
 	machine.TypedSpec().Value.SchematicId = ""
 	machine.TypedSpec().Value.TalosVersion = ""
 	machine.TypedSpec().Value.VmName = ""
-}
-
-func isNotFoundError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return err == opennebula.ErrNotFound || strings.Contains(strings.ToLower(err.Error()), "not found")
 }

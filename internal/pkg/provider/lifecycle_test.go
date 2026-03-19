@@ -31,7 +31,7 @@ func TestProvisionLifecycleWithFakeClient(t *testing.T) {
 	client.Datastores["fast-ssd"] = opennebula.DatastoreRef{ID: 31, Name: "fast-ssd"}
 	client.Networks["prod-lan"] = opennebula.NetworkRef{ID: 41, Name: "prod-lan"}
 
-	provisioner := NewProvisioner(client, cfg)
+	provisioner := NewProvisioner(client, cfg, nil)
 	machineRequest := newMachineRequest(t, `
 schemaVersion: v1alpha1
 flavor: small
@@ -91,7 +91,7 @@ func TestInstantiateVMDuplicateRequestIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	client := opennebulafake.New()
-	provisioner := NewProvisioner(client, testConfig())
+	provisioner := NewProvisioner(client, testConfig(), nil)
 	machineRequest := newMachineRequest(t, `
 schemaVersion: v1alpha1
 flavor: small
@@ -121,7 +121,7 @@ func TestInstantiateVMRetryableFailures(t *testing.T) {
 		client.Templates["talos-base"] = opennebula.TemplateRef{ID: 11, Name: "talos-base"}
 		client.Networks["prod-lan"] = opennebula.NetworkRef{ID: 41, Name: "prod-lan"}
 
-		provisioner := NewProvisioner(client, testConfig())
+		provisioner := NewProvisioner(client, testConfig(), nil)
 		machineRequest := newMachineRequest(t, `
 schemaVersion: v1alpha1
 flavor: small
@@ -148,7 +148,7 @@ networks:
 		client.Networks["prod-lan"] = opennebula.NetworkRef{ID: 41, Name: "prod-lan"}
 		client.InstantiateErr = fmt.Errorf("temporary api failure")
 
-		provisioner := NewProvisioner(client, testConfig())
+		provisioner := NewProvisioner(client, testConfig(), nil)
 		machineRequest := newMachineRequest(t, `
 schemaVersion: v1alpha1
 flavor: small
@@ -174,7 +174,7 @@ func TestDeprovisionHandlesNotFoundAndHardDelete(t *testing.T) {
 	cfg.Features.HardDelete = true
 
 	client := opennebulafake.New()
-	provisioner := NewProvisioner(client, cfg)
+	provisioner := NewProvisioner(client, cfg, nil)
 	state := resources.NewMachine("default", "req-1")
 	SetVMID(state, 77)
 	SetTemplateID(state, 11)

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v4"
@@ -28,19 +29,33 @@ const (
 //	  endpoint: https://opennebula.example.com/RPC2
 //	  templateName: talos-omni-base
 //	  imageNamePattern: "talos-opennebula-{{ .Arch }}-{{ .TalosVersion }}-schematic-{{ .SchematicID }}"
+//	imageManagement:
+//	  importOnMiss: true
+//	  requireChecksum: true
+//	  artifactURLTemplate: "https://artifacts.example.com/{{ .TalosVersion }}/{{ .Arch }}/disk.qcow2"
+//	observability:
+//	  listenAddress: :8080
 type Config struct {
-	ProviderID string            `yaml:"providerID"`
-	OpenNebula OpenNebulaConfig  `yaml:"opennebula"`
-	Defaults   DefaultsConfig    `yaml:"defaults"`
-	Features   FeaturesConfig    `yaml:"features"`
-	Timeouts   TimeoutsConfig    `yaml:"timeouts"`
-	Flavors    map[string]Flavor `yaml:"flavors"`
+	ProviderID        string                    `yaml:"providerID"`
+	OpenNebula        OpenNebulaConfig          `yaml:"opennebula"`
+	Defaults          DefaultsConfig            `yaml:"defaults"`
+	Features          FeaturesConfig            `yaml:"features"`
+	Timeouts          TimeoutsConfig            `yaml:"timeouts"`
+	Flavors           map[string]Flavor         `yaml:"flavors"`
+	ImageManagement   ImageManagementConfig     `yaml:"imageManagement"`
+	PlacementPolicies PlacementPoliciesConfig   `yaml:"placementPolicies"`
+	NetworkProfiles   map[string]NetworkProfile `yaml:"networkProfiles"`
+	StoragePolicies   StoragePoliciesConfig     `yaml:"storagePolicies"`
+	Observability     ObservabilityConfig       `yaml:"observability"`
+	Limits            LimitsConfig              `yaml:"limits"`
 }
 
 // OpenNebulaConfig contains platform-specific defaults and allow-lists.
 type OpenNebulaConfig struct {
 	Endpoint          string   `yaml:"endpoint"`
 	TemplateName      string   `yaml:"templateName"`
+	ResourcePool      string   `yaml:"resourcePool,omitempty"`
+	AllowedTemplates  []string `yaml:"allowedTemplates,omitempty"`
 	AllowedDatastores []string `yaml:"allowedDatastores,omitempty"`
 	AllowedNetworks   []string `yaml:"allowedNetworks,omitempty"`
 	ImageNamePattern  string   `yaml:"imageNamePattern"`
@@ -77,6 +92,58 @@ type Flavor struct {
 	MemoryMiB   int               `yaml:"memoryMiB"`
 	RootDiskGiB int               `yaml:"rootDiskGiB"`
 	Tags        map[string]string `yaml:"tags,omitempty"`
+}
+
+// ImageManagementConfig controls provider-managed Talos image lookup/import behavior.
+type ImageManagementConfig struct {
+	ImportOnMiss        bool          `yaml:"importOnMiss"`
+	RequireChecksum     bool          `yaml:"requireChecksum"`
+	ArtifactURLTemplate string        `yaml:"artifactURLTemplate,omitempty"`
+	ChecksumURLTemplate string        `yaml:"checksumURLTemplate,omitempty"`
+	RetainGenerations   int           `yaml:"retainGenerations,omitempty"`
+	PollInterval        time.Duration `yaml:"pollInterval,omitempty"`
+	ImportTimeout       time.Duration `yaml:"importTimeout,omitempty"`
+	CleanupOnDelete     bool          `yaml:"cleanupOnDelete,omitempty"`
+}
+
+// PlacementPoliciesConfig controls allowed placement overrides.
+type PlacementPoliciesConfig struct {
+	AllowHostOverride    bool     `yaml:"allowHostOverride"`
+	AllowClusterOverride bool     `yaml:"allowClusterOverride"`
+	AllowVMGroupOverride bool     `yaml:"allowVMGroupOverride"`
+	AllowedHosts         []string `yaml:"allowedHosts,omitempty"`
+	AllowedClusters      []string `yaml:"allowedClusters,omitempty"`
+	AllowedVMGroups      []string `yaml:"allowedVMGroups,omitempty"`
+}
+
+// NetworkProfile stores reusable network attachment defaults.
+type NetworkProfile struct {
+	NetworkName string `yaml:"networkName"`
+	Model       string `yaml:"model,omitempty"`
+	ContextMode string `yaml:"contextMode,omitempty"`
+}
+
+// StoragePoliciesConfig controls datastore defaults for root and additional disks.
+type StoragePoliciesConfig struct {
+	DefaultDatastore         string   `yaml:"defaultDatastore,omitempty"`
+	AdditionalDiskDatastores []string `yaml:"additionalDiskDatastores,omitempty"`
+}
+
+// ObservabilityConfig controls HTTP endpoints for metrics and health checks.
+type ObservabilityConfig struct {
+	ListenAddress string `yaml:"listenAddress"`
+	MetricsPath   string `yaml:"metricsPath"`
+	HealthPath    string `yaml:"healthPath"`
+	ReadyPath     string `yaml:"readyPath"`
+}
+
+// LimitsConfig constrains self-service resource overrides.
+type LimitsConfig struct {
+	MaxVCPU              int `yaml:"maxVCPU,omitempty"`
+	MaxMemoryMiB         int `yaml:"maxMemoryMiB,omitempty"`
+	MaxRootDiskGiB       int `yaml:"maxRootDiskGiB,omitempty"`
+	MaxAdditionalDisks   int `yaml:"maxAdditionalDisks,omitempty"`
+	MaxAdditionalDiskGiB int `yaml:"maxAdditionalDiskGiB,omitempty"`
 }
 
 // AuthConfig contains resolved runtime authentication values.
@@ -137,6 +204,54 @@ func (cfg *Config) applyDefaults() {
 
 	if cfg.Timeouts.Terminate == 0 {
 		cfg.Timeouts.Terminate = 5 * time.Minute
+	}
+
+	if cfg.ImageManagement.RetainGenerations == 0 {
+		cfg.ImageManagement.RetainGenerations = 2
+	}
+
+	if cfg.ImageManagement.PollInterval == 0 {
+		cfg.ImageManagement.PollInterval = 5 * time.Second
+	}
+
+	if cfg.ImageManagement.ImportTimeout == 0 {
+		cfg.ImageManagement.ImportTimeout = 20 * time.Minute
+	}
+
+	if cfg.Observability.ListenAddress == "" {
+		cfg.Observability.ListenAddress = ":9977"
+	}
+
+	if cfg.Observability.MetricsPath == "" {
+		cfg.Observability.MetricsPath = "/metrics"
+	}
+
+	if cfg.Observability.HealthPath == "" {
+		cfg.Observability.HealthPath = "/healthz"
+	}
+
+	if cfg.Observability.ReadyPath == "" {
+		cfg.Observability.ReadyPath = "/readyz"
+	}
+
+	if cfg.Limits.MaxVCPU == 0 {
+		cfg.Limits.MaxVCPU = 64
+	}
+
+	if cfg.Limits.MaxMemoryMiB == 0 {
+		cfg.Limits.MaxMemoryMiB = 262144
+	}
+
+	if cfg.Limits.MaxRootDiskGiB == 0 {
+		cfg.Limits.MaxRootDiskGiB = 2048
+	}
+
+	if cfg.Limits.MaxAdditionalDisks == 0 {
+		cfg.Limits.MaxAdditionalDisks = 8
+	}
+
+	if cfg.Limits.MaxAdditionalDiskGiB == 0 {
+		cfg.Limits.MaxAdditionalDiskGiB = 2048
 	}
 }
 
@@ -202,7 +317,67 @@ func (cfg Config) Validate() error {
 		return errors.New("timeouts must be greater than zero")
 	}
 
+	if cfg.ImageManagement.RetainGenerations < 1 {
+		return errors.New("imageManagement.retainGenerations must be >= 1")
+	}
+
+	if cfg.ImageManagement.PollInterval <= 0 || cfg.ImageManagement.ImportTimeout <= 0 {
+		return errors.New("imageManagement pollInterval and importTimeout must be greater than zero")
+	}
+
+	if cfg.StoragePolicies.DefaultDatastore != "" && !cfg.AllowedDatastore(cfg.StoragePolicies.DefaultDatastore) {
+		return fmt.Errorf("storagePolicies.defaultDatastore %q is not allowed", cfg.StoragePolicies.DefaultDatastore)
+	}
+
+	for name, profile := range cfg.NetworkProfiles {
+		if strings.TrimSpace(name) == "" {
+			return errors.New("networkProfiles keys cannot be empty")
+		}
+
+		if strings.TrimSpace(profile.NetworkName) == "" {
+			return fmt.Errorf("networkProfiles.%s.networkName is required", name)
+		}
+
+		if profile.ContextMode != "" && profile.ContextMode != "auto" && profile.ContextMode != "manual" {
+			return fmt.Errorf("networkProfiles.%s.contextMode must be %q or %q", name, "auto", "manual")
+		}
+	}
+
+	if err := validateHTTPPath("observability.metricsPath", cfg.Observability.MetricsPath); err != nil {
+		return err
+	}
+
+	if err := validateHTTPPath("observability.healthPath", cfg.Observability.HealthPath); err != nil {
+		return err
+	}
+
+	if err := validateHTTPPath("observability.readyPath", cfg.Observability.ReadyPath); err != nil {
+		return err
+	}
+
+	if cfg.Limits.MaxVCPU <= 0 || cfg.Limits.MaxMemoryMiB <= 0 || cfg.Limits.MaxRootDiskGiB <= 0 ||
+		cfg.Limits.MaxAdditionalDisks <= 0 || cfg.Limits.MaxAdditionalDiskGiB <= 0 {
+		return errors.New("limits must be greater than zero")
+	}
+
 	return nil
+}
+
+func validateHTTPPath(field, value string) error {
+	if !strings.HasPrefix(value, "/") {
+		return fmt.Errorf("%s must start with /", field)
+	}
+
+	return nil
+}
+
+// AllowedTemplate reports whether a template is allowed by runtime policy.
+func (cfg Config) AllowedTemplate(name string) bool {
+	if len(cfg.OpenNebula.AllowedTemplates) == 0 {
+		return true
+	}
+
+	return listContains(cfg.OpenNebula.AllowedTemplates, name)
 }
 
 // AllowedNetwork reports whether a network is allowed by runtime policy.
@@ -211,13 +386,7 @@ func (cfg Config) AllowedNetwork(name string) bool {
 		return true
 	}
 
-	for _, value := range cfg.OpenNebula.AllowedNetworks {
-		if value == name {
-			return true
-		}
-	}
-
-	return false
+	return listContains(cfg.OpenNebula.AllowedNetworks, name)
 }
 
 // AllowedDatastore reports whether a datastore is allowed by runtime policy.
@@ -226,8 +395,54 @@ func (cfg Config) AllowedDatastore(name string) bool {
 		return true
 	}
 
-	for _, value := range cfg.OpenNebula.AllowedDatastores {
-		if value == name {
+	return listContains(cfg.OpenNebula.AllowedDatastores, name)
+}
+
+// AllowedHost reports whether a host placement override is allowed.
+func (cfg Config) AllowedHost(name string) bool {
+	if len(cfg.PlacementPolicies.AllowedHosts) == 0 {
+		return true
+	}
+
+	return listContains(cfg.PlacementPolicies.AllowedHosts, name)
+}
+
+// AllowedCluster reports whether a cluster placement override is allowed.
+func (cfg Config) AllowedCluster(name string) bool {
+	if len(cfg.PlacementPolicies.AllowedClusters) == 0 {
+		return true
+	}
+
+	return listContains(cfg.PlacementPolicies.AllowedClusters, name)
+}
+
+// AllowedVMGroup reports whether a VM group placement override is allowed.
+func (cfg Config) AllowedVMGroup(name string) bool {
+	if len(cfg.PlacementPolicies.AllowedVMGroups) == 0 {
+		return true
+	}
+
+	return listContains(cfg.PlacementPolicies.AllowedVMGroups, name)
+}
+
+// AllowedAdditionalDiskDatastore reports whether a datastore may host provider-managed extra disks.
+func (cfg Config) AllowedAdditionalDiskDatastore(name string) bool {
+	if len(cfg.StoragePolicies.AdditionalDiskDatastores) == 0 {
+		return cfg.AllowedDatastore(name)
+	}
+
+	return listContains(cfg.StoragePolicies.AdditionalDiskDatastores, name)
+}
+
+// ResolveNetworkProfile returns a named network profile if one exists.
+func (cfg Config) ResolveNetworkProfile(name string) (NetworkProfile, bool) {
+	profile, ok := cfg.NetworkProfiles[name]
+	return profile, ok
+}
+
+func listContains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
 			return true
 		}
 	}

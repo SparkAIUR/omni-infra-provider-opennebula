@@ -21,6 +21,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/config"
+	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/observability"
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/opennebula"
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/provider"
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/provider/meta"
@@ -38,6 +39,9 @@ var rootCmd = &cobra.Command{
 	Long:         `Connects to Omni as an infrastructure provider and manages Talos VMs in OpenNebula.`,
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		runCtx, cancel := context.WithCancel(cmd.Context())
+		defer cancel()
+
 		loggerConfig := zap.NewProductionConfig()
 		logger, err := loggerConfig.Build(zap.AddStacktrace(zapcore.ErrorLevel))
 		if err != nil {
@@ -64,12 +68,16 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		opennebulaClient, err := opennebula.NewClient(runtimeConfig, authConfig)
+		metrics := observability.NewMetrics()
+		obsServer := observability.NewServer(runtimeConfig.Observability, metrics)
+
+		baseClient, err := opennebula.NewClient(runtimeConfig, authConfig)
 		if err != nil {
 			return fmt.Errorf("create opennebula client: %w", err)
 		}
 
-		provisioner := provider.NewProvisioner(opennebulaClient, runtimeConfig)
+		opennebulaClient := opennebula.Instrument(baseClient, metrics)
+		provisioner := provider.NewProvisioner(opennebulaClient, runtimeConfig, metrics)
 
 		ip, err := infra.NewProvider(meta.ProviderID, provisioner, infra.ProviderConfig{
 			Name:        cfg.providerName,
@@ -88,10 +96,25 @@ var rootCmd = &cobra.Command{
 			clientOptions = append(clientOptions, client.WithServiceAccount(cfg.serviceAccountKey))
 		}
 
-		logger.Info("starting opennebula infra provider", zap.String("endpoint", runtimeConfig.OpenNebula.Endpoint))
+		logger.Info(
+			"starting opennebula infra provider",
+			zap.String("omni_endpoint", cfg.omniAPIEndpoint),
+			zap.String("opennebula_endpoint", runtimeConfig.OpenNebula.Endpoint),
+			zap.String("resource_pool", runtimeConfig.OpenNebula.ResourcePool),
+			zap.String("auth_mode", authConfig.Mode()),
+			zap.Any("auth", authConfig.Redacted()),
+			zap.String("observability_address", runtimeConfig.Observability.ListenAddress),
+		)
+
+		if err := obsServer.Start(runCtx, logger.Named("observability")); err != nil {
+			return fmt.Errorf("start observability server: %w", err)
+		}
+
+		obsServer.SetReady(true)
+		defer obsServer.SetReady(false)
 
 		return ip.Run(
-			cmd.Context(),
+			runCtx,
 			logger,
 			infra.WithOmniEndpoint(cfg.omniAPIEndpoint),
 			infra.WithClientOptions(clientOptions...),
