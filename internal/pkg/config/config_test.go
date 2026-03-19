@@ -64,6 +64,33 @@ flavors:
 	}
 }
 
+func TestLoadAcceptsClusterRoleSequenceHostnameStrategy(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Load(strings.NewReader(`
+providerID: opennebula
+opennebula:
+  endpoint: https://one.example.com/RPC2
+  templateName: talos-base
+defaults:
+  flavor: small
+  hostnameStrategy: cluster-role-sequence
+flavors:
+  small:
+    cpu: "2"
+    vcpu: 2
+    memoryMiB: 4096
+    rootDiskGiB: 40
+`))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Defaults.HostnameStrategy != HostnameStrategyClusterRoleSequence {
+		t.Fatalf("expected hostname strategy %q, got %q", HostnameStrategyClusterRoleSequence, cfg.Defaults.HostnameStrategy)
+	}
+}
+
 func TestLoadRejectsInvalidConfig(t *testing.T) {
 	t.Parallel()
 

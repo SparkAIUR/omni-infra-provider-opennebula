@@ -124,3 +124,33 @@ func SetLastRetryClassification(machine *resources.Machine, value string) {
 func SetNetworkNames(machine *resources.Machine, names []string) {
 	machine.TypedSpec().Value.NetworkNames = append([]string(nil), names...)
 }
+
+// SetClusterName persists the source Omni cluster name used for VM naming.
+func SetClusterName(machine *resources.Machine, value string) {
+	machine.TypedSpec().Value.ClusterName = value
+}
+
+// SetClusterPrefix persists the normalized cluster prefix used for VM naming.
+func SetClusterPrefix(machine *resources.Machine, value string) {
+	machine.TypedSpec().Value.ClusterPrefix = value
+}
+
+// SetNodeRole persists the normalized node role token used for VM naming.
+func SetNodeRole(machine *resources.Machine, value string) {
+	machine.TypedSpec().Value.NodeRole = value
+}
+
+// SetSequenceNumber persists the cluster-role sequence ordinal used for VM naming.
+func SetSequenceNumber(machine *resources.Machine, value int) {
+	machine.TypedSpec().Value.SequenceNumber = int32(value)
+}
+
+// SetReservationID persists the provider-owned name reservation resource id.
+func SetReservationID(machine *resources.Machine, value string) {
+	machine.TypedSpec().Value.ReservationId = value
+}
+
+// GetReservationID reads the provider-owned name reservation resource id.
+func GetReservationID(machine *resources.Machine) string {
+	return machine.TypedSpec().Value.ReservationId
+}

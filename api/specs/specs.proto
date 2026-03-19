@@ -22,4 +22,22 @@ message MachineSpec {
   string image_checksum = 15;
   string last_successful_phase_at = 16;
   string last_retry_classification = 17;
+  string cluster_name = 18;
+  string cluster_prefix = 19;
+  string node_role = 20;
+  int32 sequence_number = 21;
+  string reservation_id = 22;
+}
+
+// NameReservationSpec stores cluster-role sequence allocations for deterministic VM naming.
+message NameReservationSpec {
+  string cluster_name = 1;
+  string cluster_prefix = 2;
+  string role = 3;
+  int32 ordinal = 4;
+  string vm_name = 5;
+  string machine_request_id = 6;
+  string machine_uuid = 7;
+  string state_resource_id = 8;
+  string created_at = 9;
 }

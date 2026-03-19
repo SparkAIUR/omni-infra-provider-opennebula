@@ -29,6 +29,11 @@ func (p *Provisioner) Deprovision(ctx context.Context, logger *zap.Logger, machi
 func (p *Provisioner) deprovision(ctx context.Context, logger *zap.Logger, machine *resources.Machine, machineRequest *infrares.MachineRequest) error {
 	vmID := GetVMID(machine)
 	if vmID == 0 {
+		if err := p.releaseReservation(ctx, machine); err != nil {
+			return provision.NewRetryErrorf(10*time.Second, "release name reservation: %w", err)
+		}
+
+		clearProvisionedState(machine)
 		provisionLogger(logger, machine, machine.Metadata().ID()).Info("vm id is not set, nothing to delete")
 		return nil
 	}
@@ -43,6 +48,10 @@ func (p *Provisioner) deprovision(ctx context.Context, logger *zap.Logger, machi
 
 	if !deleted {
 		return provision.NewRetryErrorf(10*time.Second, "wait for vm %d deletion", vmID)
+	}
+
+	if err := p.releaseReservation(ctx, machine); err != nil {
+		return provision.NewRetryErrorf(10*time.Second, "release name reservation: %w", err)
 	}
 
 	clearProvisionedState(machine)
@@ -235,4 +244,9 @@ func clearProvisionedState(machine *resources.Machine) {
 	machine.TypedSpec().Value.SchematicId = ""
 	machine.TypedSpec().Value.TalosVersion = ""
 	machine.TypedSpec().Value.VmName = ""
+	machine.TypedSpec().Value.ClusterName = ""
+	machine.TypedSpec().Value.ClusterPrefix = ""
+	machine.TypedSpec().Value.NodeRole = ""
+	machine.TypedSpec().Value.SequenceNumber = 0
+	machine.TypedSpec().Value.ReservationId = ""
 }

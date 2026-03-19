@@ -14,6 +14,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	resmeta "github.com/cosi-project/runtime/pkg/resource/meta"
+	"github.com/cosi-project/runtime/pkg/resource/protobuf"
+	"github.com/cosi-project/runtime/pkg/state"
+	"github.com/cosi-project/runtime/pkg/state/registry"
 	"github.com/siderolabs/omni/client/pkg/client"
 	"github.com/siderolabs/omni/client/pkg/infra"
 	"github.com/spf13/cobra"
@@ -24,7 +28,8 @@ import (
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/observability"
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/opennebula"
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/provider"
-	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/provider/meta"
+	providermeta "github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/provider/meta"
+	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/provider/resources"
 )
 
 //go:embed data/schema.json
@@ -76,10 +81,43 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("create opennebula client: %w", err)
 		}
 
-		opennebulaClient := opennebula.Instrument(baseClient, metrics)
-		provisioner := provider.NewProvisioner(opennebulaClient, runtimeConfig, metrics)
+		clientOptions := []client.Option{
+			client.WithInsecureSkipTLSVerify(cfg.insecureSkipVerify),
+		}
+		if cfg.serviceAccountKey != "" {
+			clientOptions = append(clientOptions, client.WithServiceAccount(cfg.serviceAccountKey))
+		}
 
-		ip, err := infra.NewProvider(meta.ProviderID, provisioner, infra.ProviderConfig{
+		omniClient, err := client.New(cfg.omniAPIEndpoint, clientOptions...)
+		if err != nil {
+			return fmt.Errorf("create omni client: %w", err)
+		}
+		defer omniClient.Close() //nolint:errcheck
+
+		omniState, err := infra.NewState(omniClient)
+		if err != nil {
+			return fmt.Errorf("create omni state: %w", err)
+		}
+
+		stateHandle := omniState.State()
+		if err := ensureProviderResourceDefinition(runCtx, stateHandle, resources.NewMachine("", "")); err != nil {
+			return err
+		}
+		if err := ensureProviderResourceDefinition(runCtx, stateHandle, resources.NewNameReservation("", "")); err != nil {
+			return err
+		}
+
+		opennebulaClient := opennebula.Instrument(baseClient, metrics)
+		provisioner := provider.NewProvisioner(opennebulaClient, runtimeConfig, metrics, stateHandle)
+
+		if err := protobuf.RegisterResource(
+			resources.NewNameReservation("", "").ResourceDefinition().Type,
+			resources.NewNameReservation("", ""),
+		); err != nil {
+			return err
+		}
+
+		ip, err := infra.NewProvider(providermeta.ProviderID, provisioner, infra.ProviderConfig{
 			Name:        cfg.providerName,
 			Description: cfg.providerDescription,
 			Icon:        base64.RawStdEncoding.EncodeToString(icon),
@@ -87,13 +125,6 @@ var rootCmd = &cobra.Command{
 		})
 		if err != nil {
 			return fmt.Errorf("create infra provider: %w", err)
-		}
-
-		clientOptions := []client.Option{
-			client.WithInsecureSkipTLSVerify(cfg.insecureSkipVerify),
-		}
-		if cfg.serviceAccountKey != "" {
-			clientOptions = append(clientOptions, client.WithServiceAccount(cfg.serviceAccountKey))
 		}
 
 		logger.Info(
@@ -116,8 +147,7 @@ var rootCmd = &cobra.Command{
 		return ip.Run(
 			runCtx,
 			logger,
-			infra.WithOmniEndpoint(cfg.omniAPIEndpoint),
-			infra.WithClientOptions(clientOptions...),
+			infra.WithState(stateHandle),
 			infra.WithConcurrency(5),
 		)
 	},
@@ -148,7 +178,7 @@ func app() error {
 func init() {
 	rootCmd.Flags().StringVar(&cfg.omniAPIEndpoint, "omni-api-endpoint", os.Getenv("OMNI_ENDPOINT"),
 		"the endpoint of the Omni API, defaults to OMNI_ENDPOINT")
-	rootCmd.Flags().StringVar(&meta.ProviderID, "id", meta.ProviderID, "the infra provider id")
+	rootCmd.Flags().StringVar(&providermeta.ProviderID, "id", providermeta.ProviderID, "the infra provider id")
 	rootCmd.Flags().StringVar(&cfg.serviceAccountKey, "omni-service-account-key", os.Getenv("OMNI_SERVICE_ACCOUNT_KEY"),
 		"the Omni service account key, defaults to OMNI_SERVICE_ACCOUNT_KEY")
 	rootCmd.Flags().StringVar(&cfg.providerName, "provider-name", "opennebula", "provider name as it appears in Omni")
@@ -156,4 +186,15 @@ func init() {
 	rootCmd.Flags().BoolVar(&cfg.insecureSkipVerify, "insecure-skip-verify", false, "ignore untrusted Omni certificates")
 	rootCmd.Flags().StringVar(&cfg.configFile, "config-file", "", "provider config file")
 	_ = rootCmd.MarkFlagRequired("config-file")
+}
+
+func ensureProviderResourceDefinition(ctx context.Context, st state.State, r interface {
+	resmeta.ResourceWithRD
+}) error {
+	rr := registry.NewResourceRegistry(st)
+	if err := rr.Register(ctx, r); err != nil && !state.IsConflictError(err) {
+		return fmt.Errorf("register resource definition %q: %w", r.ResourceDefinition().Type, err)
+	}
+
+	return nil
 }

@@ -13,6 +13,7 @@ import (
 	"text/template"
 	"time"
 
+	cosistate "github.com/cosi-project/runtime/pkg/state"
 	"github.com/google/uuid"
 	"github.com/siderolabs/omni/client/pkg/infra/provision"
 	"go.uber.org/zap"
@@ -30,15 +31,17 @@ type Provisioner struct {
 	config       providerconfig.Config
 	metrics      *observability.Metrics
 	imageManager *imagemanager.Manager
+	omniState    cosistate.State
 }
 
 // NewProvisioner creates a new OpenNebula provisioner.
-func NewProvisioner(client opennebula.Client, cfg providerconfig.Config, metrics *observability.Metrics) *Provisioner {
+func NewProvisioner(client opennebula.Client, cfg providerconfig.Config, metrics *observability.Metrics, omniState cosistate.State) *Provisioner {
 	return &Provisioner{
 		client:       client,
 		config:       cfg,
 		metrics:      metrics,
 		imageManager: imagemanager.New(client, cfg, metrics),
+		omniState:    omniState,
 	}
 }
 
@@ -52,17 +55,21 @@ func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 	}
 }
 
-func (p *Provisioner) assignMachineUUID(_ context.Context, logger *zap.Logger, pctx provision.Context[*resources.Machine]) error {
+func (p *Provisioner) assignMachineUUID(ctx context.Context, logger *zap.Logger, pctx provision.Context[*resources.Machine]) error {
 	return p.runProvisionStep("assignMachineUUID", func() error {
-		if existing := GetMachineUUID(pctx.State); existing != "" {
-			pctx.SetMachineUUID(existing)
-			return nil
+		uuidValue := GetMachineUUID(pctx.State)
+		if uuidValue == "" {
+			uuidValue = uuid.NewString()
+			SetMachineUUID(pctx.State, uuidValue)
 		}
 
-		uuidValue := uuid.NewString()
-		SetMachineUUID(pctx.State, uuidValue)
+		vmName, err := p.resolveVMName(ctx, pctx.State, pctx.GetRequestID(), uuidValue)
+		if err != nil {
+			return err
+		}
+
 		pctx.State.TypedSpec().Value.TalosVersion = pctx.GetTalosVersion()
-		pctx.State.TypedSpec().Value.VmName = CanonicalVMName(pctx.GetRequestID())
+		pctx.State.TypedSpec().Value.VmName = vmName
 		pctx.SetMachineUUID(uuidValue)
 		SetPhase(pctx.State, "machine_uuid_assigned")
 		provisionLogger(logger, pctx.State, pctx.GetRequestID()).Info("assigned machine identity")

@@ -42,6 +42,11 @@ type MachineSpec struct {
 	ImageChecksum           string                 `protobuf:"bytes,15,opt,name=image_checksum,json=imageChecksum,proto3" json:"image_checksum,omitempty"`
 	LastSuccessfulPhaseAt   string                 `protobuf:"bytes,16,opt,name=last_successful_phase_at,json=lastSuccessfulPhaseAt,proto3" json:"last_successful_phase_at,omitempty"`
 	LastRetryClassification string                 `protobuf:"bytes,17,opt,name=last_retry_classification,json=lastRetryClassification,proto3" json:"last_retry_classification,omitempty"`
+	ClusterName             string                 `protobuf:"bytes,18,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
+	ClusterPrefix           string                 `protobuf:"bytes,19,opt,name=cluster_prefix,json=clusterPrefix,proto3" json:"cluster_prefix,omitempty"`
+	NodeRole                string                 `protobuf:"bytes,20,opt,name=node_role,json=nodeRole,proto3" json:"node_role,omitempty"`
+	SequenceNumber          int32                  `protobuf:"varint,21,opt,name=sequence_number,json=sequenceNumber,proto3" json:"sequence_number,omitempty"`
+	ReservationId           string                 `protobuf:"bytes,22,opt,name=reservation_id,json=reservationId,proto3" json:"reservation_id,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -195,11 +200,155 @@ func (x *MachineSpec) GetLastRetryClassification() string {
 	return ""
 }
 
+func (x *MachineSpec) GetClusterName() string {
+	if x != nil {
+		return x.ClusterName
+	}
+	return ""
+}
+
+func (x *MachineSpec) GetClusterPrefix() string {
+	if x != nil {
+		return x.ClusterPrefix
+	}
+	return ""
+}
+
+func (x *MachineSpec) GetNodeRole() string {
+	if x != nil {
+		return x.NodeRole
+	}
+	return ""
+}
+
+func (x *MachineSpec) GetSequenceNumber() int32 {
+	if x != nil {
+		return x.SequenceNumber
+	}
+	return 0
+}
+
+func (x *MachineSpec) GetReservationId() string {
+	if x != nil {
+		return x.ReservationId
+	}
+	return ""
+}
+
+// NameReservationSpec stores cluster-role sequence allocations for deterministic VM naming.
+type NameReservationSpec struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ClusterName      string                 `protobuf:"bytes,1,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
+	ClusterPrefix    string                 `protobuf:"bytes,2,opt,name=cluster_prefix,json=clusterPrefix,proto3" json:"cluster_prefix,omitempty"`
+	Role             string                 `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty"`
+	Ordinal          int32                  `protobuf:"varint,4,opt,name=ordinal,proto3" json:"ordinal,omitempty"`
+	VmName           string                 `protobuf:"bytes,5,opt,name=vm_name,json=vmName,proto3" json:"vm_name,omitempty"`
+	MachineRequestId string                 `protobuf:"bytes,6,opt,name=machine_request_id,json=machineRequestId,proto3" json:"machine_request_id,omitempty"`
+	MachineUuid      string                 `protobuf:"bytes,7,opt,name=machine_uuid,json=machineUuid,proto3" json:"machine_uuid,omitempty"`
+	StateResourceId  string                 `protobuf:"bytes,8,opt,name=state_resource_id,json=stateResourceId,proto3" json:"state_resource_id,omitempty"`
+	CreatedAt        string                 `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *NameReservationSpec) Reset() {
+	*x = NameReservationSpec{}
+	mi := &file_specs_specs_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NameReservationSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NameReservationSpec) ProtoMessage() {}
+
+func (x *NameReservationSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_specs_specs_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NameReservationSpec.ProtoReflect.Descriptor instead.
+func (*NameReservationSpec) Descriptor() ([]byte, []int) {
+	return file_specs_specs_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *NameReservationSpec) GetClusterName() string {
+	if x != nil {
+		return x.ClusterName
+	}
+	return ""
+}
+
+func (x *NameReservationSpec) GetClusterPrefix() string {
+	if x != nil {
+		return x.ClusterPrefix
+	}
+	return ""
+}
+
+func (x *NameReservationSpec) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *NameReservationSpec) GetOrdinal() int32 {
+	if x != nil {
+		return x.Ordinal
+	}
+	return 0
+}
+
+func (x *NameReservationSpec) GetVmName() string {
+	if x != nil {
+		return x.VmName
+	}
+	return ""
+}
+
+func (x *NameReservationSpec) GetMachineRequestId() string {
+	if x != nil {
+		return x.MachineRequestId
+	}
+	return ""
+}
+
+func (x *NameReservationSpec) GetMachineUuid() string {
+	if x != nil {
+		return x.MachineUuid
+	}
+	return ""
+}
+
+func (x *NameReservationSpec) GetStateResourceId() string {
+	if x != nil {
+		return x.StateResourceId
+	}
+	return ""
+}
+
+func (x *NameReservationSpec) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
 var File_specs_specs_proto protoreflect.FileDescriptor
 
 const file_specs_specs_proto_rawDesc = "" +
 	"\n" +
-	"\x11specs/specs.proto\x12\x0fopennebulaspecs\"\xd2\x04\n" +
+	"\x11specs/specs.proto\x12\x0fopennebulaspecs\"\x89\x06\n" +
 	"\vMachineSpec\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\x05R\x04vmId\x12\x17\n" +
 	"\avm_name\x18\x02 \x01(\tR\x06vmName\x12#\n" +
@@ -221,7 +370,23 @@ const file_specs_specs_proto_rawDesc = "" +
 	"\fimage_source\x18\x0e \x01(\tR\vimageSource\x12%\n" +
 	"\x0eimage_checksum\x18\x0f \x01(\tR\rimageChecksum\x127\n" +
 	"\x18last_successful_phase_at\x18\x10 \x01(\tR\x15lastSuccessfulPhaseAt\x12:\n" +
-	"\x19last_retry_classification\x18\x11 \x01(\tR\x17lastRetryClassificationB?Z=github.com/SparkAIUR/omni-infra-provider-opennebula/api/specsb\x06proto3"
+	"\x19last_retry_classification\x18\x11 \x01(\tR\x17lastRetryClassification\x12!\n" +
+	"\fcluster_name\x18\x12 \x01(\tR\vclusterName\x12%\n" +
+	"\x0ecluster_prefix\x18\x13 \x01(\tR\rclusterPrefix\x12\x1b\n" +
+	"\tnode_role\x18\x14 \x01(\tR\bnodeRole\x12'\n" +
+	"\x0fsequence_number\x18\x15 \x01(\x05R\x0esequenceNumber\x12%\n" +
+	"\x0ereservation_id\x18\x16 \x01(\tR\rreservationId\"\xc2\x02\n" +
+	"\x13NameReservationSpec\x12!\n" +
+	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12%\n" +
+	"\x0ecluster_prefix\x18\x02 \x01(\tR\rclusterPrefix\x12\x12\n" +
+	"\x04role\x18\x03 \x01(\tR\x04role\x12\x18\n" +
+	"\aordinal\x18\x04 \x01(\x05R\aordinal\x12\x17\n" +
+	"\avm_name\x18\x05 \x01(\tR\x06vmName\x12,\n" +
+	"\x12machine_request_id\x18\x06 \x01(\tR\x10machineRequestId\x12!\n" +
+	"\fmachine_uuid\x18\a \x01(\tR\vmachineUuid\x12*\n" +
+	"\x11state_resource_id\x18\b \x01(\tR\x0fstateResourceId\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\t \x01(\tR\tcreatedAtB?Z=github.com/SparkAIUR/omni-infra-provider-opennebula/api/specsb\x06proto3"
 
 var (
 	file_specs_specs_proto_rawDescOnce sync.Once
@@ -235,9 +400,10 @@ func file_specs_specs_proto_rawDescGZIP() []byte {
 	return file_specs_specs_proto_rawDescData
 }
 
-var file_specs_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_specs_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_specs_specs_proto_goTypes = []any{
-	(*MachineSpec)(nil), // 0: opennebulaspecs.MachineSpec
+	(*MachineSpec)(nil),         // 0: opennebulaspecs.MachineSpec
+	(*NameReservationSpec)(nil), // 1: opennebulaspecs.NameReservationSpec
 }
 var file_specs_specs_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -258,7 +424,7 @@ func file_specs_specs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_specs_specs_proto_rawDesc), len(file_specs_specs_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -18,6 +18,10 @@ import (
 const (
 	// ProviderID is the only supported provider identifier for this repository.
 	ProviderID = "opennebula"
+	// HostnameStrategyVMName keeps the legacy request-id based naming behavior.
+	HostnameStrategyVMName = "vm-name"
+	// HostnameStrategyClusterRoleSequence derives names from cluster name, role, and sequence.
+	HostnameStrategyClusterRoleSequence = "cluster-role-sequence"
 )
 
 // Config describes the provider runtime configuration.
@@ -192,7 +196,7 @@ func (cfg *Config) applyDefaults() {
 	}
 
 	if cfg.Defaults.HostnameStrategy == "" {
-		cfg.Defaults.HostnameStrategy = "vm-name"
+		cfg.Defaults.HostnameStrategy = HostnameStrategyVMName
 	}
 
 	if cfg.Timeouts.Instantiate == 0 {
@@ -282,8 +286,14 @@ func (cfg Config) Validate() error {
 		return fmt.Errorf("defaults.networkContextMode must be %q or %q", "auto", "manual")
 	}
 
-	if cfg.Defaults.HostnameStrategy != "vm-name" {
-		return fmt.Errorf("defaults.hostnameStrategy must be %q", "vm-name")
+	switch cfg.Defaults.HostnameStrategy {
+	case HostnameStrategyVMName, HostnameStrategyClusterRoleSequence:
+	default:
+		return fmt.Errorf(
+			"defaults.hostnameStrategy must be %q or %q",
+			HostnameStrategyVMName,
+			HostnameStrategyClusterRoleSequence,
+		)
 	}
 
 	if cfg.Defaults.SecureBoot && cfg.Defaults.Firmware != "uefi" {

@@ -37,7 +37,7 @@ func TestProvisionLifecycleWithFakeClient(t *testing.T) {
 	client.Datastores["fast-ssd"] = opennebula.DatastoreRef{ID: 31, Name: "fast-ssd"}
 	client.Networks["prod-lan"] = opennebula.NetworkRef{ID: 41, Name: "prod-lan"}
 
-	provisioner := NewProvisioner(client, cfg, nil)
+	provisioner := NewProvisioner(client, cfg, nil, nil)
 	machineRequest := newMachineRequest(t, `
 schemaVersion: v1alpha1
 flavor: small
@@ -99,7 +99,7 @@ func TestInstantiateVMDuplicateRequestIsNoOp(t *testing.T) {
 	t.Parallel()
 
 	client := opennebulafake.New()
-	provisioner := NewProvisioner(client, testConfig(), nil)
+	provisioner := NewProvisioner(client, testConfig(), nil, nil)
 	machineRequest := newMachineRequest(t, `
 schemaVersion: v1alpha1
 flavor: small
@@ -129,7 +129,7 @@ func TestInstantiateVMRetryableFailures(t *testing.T) {
 		client.Templates["talos-base"] = opennebula.TemplateRef{ID: 11, Name: "talos-base"}
 		client.Networks["prod-lan"] = opennebula.NetworkRef{ID: 41, Name: "prod-lan"}
 
-		provisioner := NewProvisioner(client, testConfig(), nil)
+		provisioner := NewProvisioner(client, testConfig(), nil, nil)
 		machineRequest := newMachineRequest(t, `
 schemaVersion: v1alpha1
 flavor: small
@@ -156,7 +156,7 @@ networks:
 		client.Networks["prod-lan"] = opennebula.NetworkRef{ID: 41, Name: "prod-lan"}
 		client.InstantiateErr = fmt.Errorf("temporary api failure")
 
-		provisioner := NewProvisioner(client, testConfig(), nil)
+		provisioner := NewProvisioner(client, testConfig(), nil, nil)
 		machineRequest := newMachineRequest(t, `
 schemaVersion: v1alpha1
 flavor: small
@@ -206,7 +206,7 @@ func TestInstantiateVMImportsMissingImageWhenConfigured(t *testing.T) {
 	client.Datastores["fast-ssd"] = opennebula.DatastoreRef{ID: 31, Name: "fast-ssd"}
 	client.Networks["prod-lan"] = opennebula.NetworkRef{ID: 41, Name: "prod-lan"}
 
-	provisioner := NewProvisioner(client, cfg, nil)
+	provisioner := NewProvisioner(client, cfg, nil, nil)
 	machineRequest := newMachineRequest(t, `
 schemaVersion: v1alpha1
 flavor: small
@@ -239,7 +239,7 @@ func TestDeprovisionHandlesNotFoundAndHardDelete(t *testing.T) {
 	cfg.Features.HardDelete = true
 
 	client := opennebulafake.New()
-	provisioner := NewProvisioner(client, cfg, nil)
+	provisioner := NewProvisioner(client, cfg, nil, nil)
 	state := resources.NewMachine("default", "req-1")
 	SetVMID(state, 77)
 	SetTemplateID(state, 11)
@@ -277,7 +277,7 @@ func TestDeprovisionForceDeletesLingeringShutdownVM(t *testing.T) {
 	client.VMs[91] = opennebula.VMInfo{ID: 91, Name: "vm-91", State: "ACTIVE", LCMState: "RUNNING"}
 	client.TerminateLeavesVM = true
 
-	provisioner := NewProvisioner(client, cfg, nil)
+	provisioner := NewProvisioner(client, cfg, nil, nil)
 	state := resources.NewMachine("default", "req-1")
 	SetVMID(state, 91)
 	SetTemplateID(state, 11)
@@ -311,7 +311,7 @@ func TestDeprovisionKeepsStateWhileLingeringVMStillExists(t *testing.T) {
 	client.TerminateLeavesVM = true
 	client.ForceDeleteLeavesVM = true
 
-	provisioner := NewProvisioner(client, cfg, nil)
+	provisioner := NewProvisioner(client, cfg, nil, nil)
 	state := resources.NewMachine("default", "req-2")
 	SetVMID(state, 92)
 	SetTemplateID(state, 11)
@@ -341,7 +341,7 @@ func TestDeprovisionForceDeletesDoneVMLingeringInInventory(t *testing.T) {
 	client := opennebulafake.New()
 	client.VMs[93] = opennebula.VMInfo{ID: 93, Name: "vm-93", State: "DONE", LCMState: "LCM_INIT"}
 
-	provisioner := NewProvisioner(client, cfg, nil)
+	provisioner := NewProvisioner(client, cfg, nil, nil)
 	state := resources.NewMachine("default", "req-3")
 	SetVMID(state, 93)
 	SetTemplateID(state, 11)
