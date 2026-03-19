@@ -14,10 +14,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	resmeta "github.com/cosi-project/runtime/pkg/resource/meta"
 	"github.com/cosi-project/runtime/pkg/resource/protobuf"
-	"github.com/cosi-project/runtime/pkg/state"
-	"github.com/cosi-project/runtime/pkg/state/registry"
 	"github.com/siderolabs/omni/client/pkg/client"
 	"github.com/siderolabs/omni/client/pkg/infra"
 	"github.com/spf13/cobra"
@@ -100,12 +97,6 @@ var rootCmd = &cobra.Command{
 		}
 
 		stateHandle := omniState.State()
-		if err := ensureProviderResourceDefinition(runCtx, stateHandle, resources.NewMachine("", "")); err != nil {
-			return err
-		}
-		if err := ensureProviderResourceDefinition(runCtx, stateHandle, resources.NewNameReservation("", "")); err != nil {
-			return err
-		}
 
 		opennebulaClient := opennebula.Instrument(baseClient, metrics)
 		provisioner := provider.NewProvisioner(opennebulaClient, runtimeConfig, metrics, stateHandle)
@@ -186,15 +177,4 @@ func init() {
 	rootCmd.Flags().BoolVar(&cfg.insecureSkipVerify, "insecure-skip-verify", false, "ignore untrusted Omni certificates")
 	rootCmd.Flags().StringVar(&cfg.configFile, "config-file", "", "provider config file")
 	_ = rootCmd.MarkFlagRequired("config-file")
-}
-
-func ensureProviderResourceDefinition(ctx context.Context, st state.State, r interface {
-	resmeta.ResourceWithRD
-}) error {
-	rr := registry.NewResourceRegistry(st)
-	if err := rr.Register(ctx, r); err != nil && !state.IsConflictError(err) {
-		return fmt.Errorf("register resource definition %q: %w", r.ResourceDefinition().Type, err)
-	}
-
-	return nil
 }
