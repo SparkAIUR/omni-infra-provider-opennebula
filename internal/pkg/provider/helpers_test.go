@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	providerconfig "github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/config"
-	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/opennebula"
 	"github.com/siderolabs/omni/client/pkg/infra/provision"
 )
 
@@ -58,6 +57,10 @@ func TestValidateProviderDataAppliesDefaults(t *testing.T) {
 
 	if data.Graphics.Enabled == nil || *data.Graphics.Enabled {
 		t.Fatalf("expected default graphics.enabled=false, got %+v", data.Graphics.Enabled)
+	}
+
+	if data.ImagePolicy.Mode != "reuse-only" {
+		t.Fatalf("expected default image policy reuse-only, got %q", data.ImagePolicy.Mode)
 	}
 }
 
@@ -111,6 +114,35 @@ func TestValidateProviderDataRejectsInvalidCombinations(t *testing.T) {
 			want: "secure boot requires uefi firmware",
 		},
 		{
+			name: "v1alpha1 with v1alpha2 fields",
+			data: ProviderData{
+				SchemaVersion: "v1alpha1",
+				Flavor:        "small",
+				Networks:      []NetworkRef{{Name: "prod-lan", Profile: "prod"}},
+			},
+			want: "v1alpha2-only fields",
+		},
+		{
+			name: "placement host disabled",
+			data: ProviderData{
+				SchemaVersion: "v1alpha2",
+				Flavor:        "small",
+				Networks:      []NetworkRef{{Name: "prod-lan"}},
+				Placement:     PlacementPolicy{Host: "compute-01"},
+			},
+			want: "placement.host is disabled",
+		},
+		{
+			name: "additional disk too large",
+			data: ProviderData{
+				SchemaVersion:   "v1alpha2",
+				Flavor:          "small",
+				Networks:        []NetworkRef{{Name: "prod-lan"}},
+				AdditionalDisks: []AdditionalDisk{{SizeGiB: 200}},
+			},
+			want: "additionalDisks[0].sizeGiB exceeds provider limit",
+		},
+		{
 			name: "explicit resources missing values",
 			data: ProviderData{
 				Resources: &ResourceOverrides{CPU: "2"},
@@ -143,6 +175,43 @@ func TestValidateProviderDataRejectsInvalidCombinations(t *testing.T) {
 	}
 }
 
+func TestValidateProviderDataResolvesProfilesAndModes(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig()
+	cfg.PlacementPolicies.AllowHostOverride = true
+	cfg.PlacementPolicies.AllowedHosts = []string{"compute-01"}
+	cfg.Features.HardDelete = true
+	cfg.ImageManagement.ImportOnMiss = true
+
+	data := &ProviderData{
+		SchemaVersion: "v1alpha2",
+		Flavor:        "small",
+		Networks: []NetworkRef{
+			{Profile: "prod", Model: "e1000"},
+		},
+		Placement:       PlacementPolicy{Host: "compute-01"},
+		AdditionalDisks: []AdditionalDisk{{Name: "state", SizeGiB: 20}},
+		Lifecycle:       LifecyclePolicy{DeleteMode: "hard"},
+	}
+
+	if err := ValidateProviderData(data, cfg); err != nil {
+		t.Fatalf("ValidateProviderData() error = %v", err)
+	}
+
+	if data.Networks[0].Name != "prod-lan" {
+		t.Fatalf("expected network profile to resolve name, got %+v", data.Networks[0])
+	}
+
+	if data.NetworkContextMode != "auto" {
+		t.Fatalf("expected network mode from profile/defaults to resolve to auto, got %q", data.NetworkContextMode)
+	}
+
+	if data.ImagePolicy.Mode != "reuse-or-import" {
+		t.Fatalf("expected image policy reuse-or-import, got %q", data.ImagePolicy.Mode)
+	}
+}
+
 func TestResolveResources(t *testing.T) {
 	t.Parallel()
 
@@ -162,6 +231,7 @@ func TestResolveResources(t *testing.T) {
 	}
 	fromExplicit, err := ResolveResources(explicit, providerconfig.Config{
 		Features: providerconfig.FeaturesConfig{AllowExplicitResources: true},
+		Limits:   providerconfig.LimitsConfig{MaxVCPU: 8, MaxMemoryMiB: 16384, MaxRootDiskGiB: 200},
 	})
 	if err != nil {
 		t.Fatalf("ResolveResources() explicit error = %v", err)
@@ -207,10 +277,16 @@ func TestRenderTemplateAndRedaction(t *testing.T) {
 		ImageName:       "talos-image",
 		Datastore:       "fast-ssd",
 		Resources:       ResolvedResources{CPU: "2", VCPU: 2, MemoryMiB: 4096, RootDiskGiB: 40},
-		Networks:        []opennebula.NetworkRef{{Name: "prod-lan"}},
+		Networks:        []RenderedNetwork{{Name: "prod-lan", Model: "e1000"}},
 		FirmwareMode:    "uefi",
 		SecureBoot:      true,
 		GraphicsEnabled: false,
+		Placement: ResolvedPlacement{
+			SchedRequirements: `NAME = "compute-01" & CLUSTER = "cluster-a"`,
+			VMGroupName:       "control-plane",
+			VMGroupRole:       "master",
+		},
+		AdditionalDisks: []AdditionalDisk{{Name: "state", SizeGiB: 20, Format: "qcow2"}},
 		ContextKV: map[string]string{
 			"NETWORK":            "YES",
 			"USER_DATA":          "sensitive",
@@ -224,6 +300,18 @@ func TestRenderTemplateAndRedaction(t *testing.T) {
 
 	if !strings.Contains(rendered, "TYPE = \"none\"") {
 		t.Fatalf("expected graphics disabled rendering, got %q", rendered)
+	}
+
+	if !strings.Contains(rendered, `SCHED_REQUIREMENTS = "NAME = \"compute-01\" & CLUSTER = \"cluster-a\""`) {
+		t.Fatalf("expected placement requirements, got %q", rendered)
+	}
+
+	if !strings.Contains(rendered, `VMGROUP_NAME = "control-plane"`) {
+		t.Fatalf("expected vmgroup rendering, got %q", rendered)
+	}
+
+	if !strings.Contains(rendered, `MODEL = "e1000"`) {
+		t.Fatalf("expected nic model rendering, got %q", rendered)
 	}
 
 	redacted := RedactTemplateForLog(rendered)
@@ -256,6 +344,18 @@ func testConfig() providerconfig.Config {
 		},
 		Features: providerconfig.FeaturesConfig{
 			AllowExplicitResources: true,
+		},
+		NetworkProfiles: map[string]providerconfig.NetworkProfile{
+			"prod": {
+				NetworkName: "prod-lan",
+				Model:       "virtio",
+				ContextMode: "auto",
+			},
+		},
+		Limits: providerconfig.LimitsConfig{
+			MaxRootDiskGiB:       200,
+			MaxAdditionalDisks:   2,
+			MaxAdditionalDiskGiB: 100,
 		},
 		Flavors: map[string]providerconfig.Flavor{
 			"small": {

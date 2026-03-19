@@ -12,6 +12,8 @@ providerID: opennebula
 opennebula:
   endpoint: "https://opennebula.example.com/RPC2"
   templateName: "talos-omni-base"
+  allowedTemplates:
+    - "talos-omni-base"
   allowedDatastores:
     - "ssd-primary"
     - "ceph-images"
@@ -30,6 +32,38 @@ features:
   allowExplicitResources: true
   enableGPU: false
   hardDelete: false
+imageManagement:
+  importOnMiss: true
+  requireChecksum: true
+  artifactURLTemplate: "https://artifacts.example.com/talos/{{ .TalosVersion }}/{{ .Arch }}/disk.qcow2"
+  checksumURLTemplate: "https://artifacts.example.com/talos/{{ .TalosVersion }}/{{ .Arch }}/disk.qcow2.sha256"
+  retainGenerations: 1
+  pollInterval: 5s
+  importTimeout: 20m
+placementPolicies:
+  allowHostOverride: false
+  allowClusterOverride: false
+  allowVMGroupOverride: true
+  allowedVMGroups:
+    - "control-plane"
+networkProfiles:
+  talos-prod:
+    networkName: "talos-prod"
+    model: "virtio"
+    contextMode: "auto"
+storagePolicies:
+  defaultDatastore: "ssd-primary"
+observability:
+  listenAddress: ":8080"
+  metricsPath: "/metrics"
+  healthPath: "/healthz"
+  readyPath: "/readyz"
+limits:
+  maxVCPU: 16
+  maxMemoryMiB: 65536
+  maxRootDiskGiB: 200
+  maxAdditionalDisks: 2
+  maxAdditionalDiskGiB: 100
 timeouts:
   instantiate: 2m
   vmReady: 10m
@@ -50,5 +84,7 @@ flavors:
 ## Notes
 
 - Secrets do not belong in this file.
-- If `allowedDatastores` or `allowedNetworks` are empty, the provider does not restrict them.
+- If `allowedDatastores`, `allowedNetworks`, or `allowedTemplates` are empty, the provider does not restrict them.
 - `imageNamePattern` should match the Talos image naming used in your OpenNebula image catalog.
+- `imageManagement` turns missing-image resolution into a provider-managed import flow.
+- `observability` exposes Prometheus metrics plus `/healthz` and `/readyz`.

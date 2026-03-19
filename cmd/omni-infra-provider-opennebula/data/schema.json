@@ -5,7 +5,7 @@
   "properties": {
     "schemaVersion": {
       "type": "string",
-      "const": "v1alpha1"
+      "enum": ["v1alpha1", "v1alpha2"]
     },
     "flavor": {
       "type": "string",
@@ -47,9 +47,18 @@
         "properties": {
           "name": {
             "type": "string"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["auto", "manual"]
+          },
+          "model": {
+            "type": "string"
           }
-        },
-        "required": ["name"]
+        }
       }
     },
     "networkContextMode": {
@@ -137,6 +146,65 @@
         },
         "profile": {
           "type": "string"
+        }
+      }
+    },
+    "imagePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["reuse-only", "reuse-or-import"]
+        }
+      }
+    },
+    "placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "type": "string"
+        },
+        "cluster": {
+          "type": "string"
+        },
+        "vmGroup": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        }
+      }
+    },
+    "additionalDisks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "sizeGiB": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "format": {
+            "type": "string",
+            "enum": ["qcow2", "raw"]
+          }
+        },
+        "required": ["sizeGiB"]
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deleteMode": {
+          "type": "string",
+          "enum": ["terminate", "normal", "hard"]
         }
       }
     }

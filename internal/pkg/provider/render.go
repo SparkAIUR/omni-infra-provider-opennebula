@@ -7,8 +7,6 @@ package provider
 import (
 	"fmt"
 	"strings"
-
-	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/opennebula"
 )
 
 // RenderInput is the fully resolved template-render input.
@@ -17,11 +15,19 @@ type RenderInput struct {
 	ImageName       string
 	Datastore       string
 	Resources       ResolvedResources
-	Networks        []opennebula.NetworkRef
+	Networks        []RenderedNetwork
 	FirmwareMode    string
 	SecureBoot      bool
 	GraphicsEnabled bool
 	ContextKV       map[string]string
+	Placement       ResolvedPlacement
+	AdditionalDisks []AdditionalDisk
+}
+
+// RenderedNetwork is the fully resolved network attachment input.
+type RenderedNetwork struct {
+	Name  string
+	Model string
 }
 
 // RenderTemplate renders the extra template string for OpenNebula instantiation.
@@ -32,6 +38,21 @@ func RenderTemplate(input RenderInput) string {
 	builder.WriteString(fmt.Sprintf("CPU = %q\n", input.Resources.CPU))
 	builder.WriteString(fmt.Sprintf("VCPU = %q\n", fmt.Sprintf("%d", input.Resources.VCPU)))
 	builder.WriteString(fmt.Sprintf("MEMORY = %q\n\n", fmt.Sprintf("%d", input.Resources.MemoryMiB)))
+
+	if input.Placement.SchedRequirements != "" {
+		builder.WriteString(fmt.Sprintf("SCHED_REQUIREMENTS = %q\n\n", input.Placement.SchedRequirements))
+	}
+
+	if input.Placement.VMGroupName != "" {
+		builder.WriteString("VMGROUP = [\n")
+		builder.WriteString(fmt.Sprintf("  VMGROUP_NAME = %q", input.Placement.VMGroupName))
+		if input.Placement.VMGroupRole != "" {
+			builder.WriteString(fmt.Sprintf(",\n  ROLE = %q\n", input.Placement.VMGroupRole))
+		} else {
+			builder.WriteString("\n")
+		}
+		builder.WriteString("]\n\n")
+	}
 
 	builder.WriteString("OS = [\n")
 	builder.WriteString(fmt.Sprintf("  FIRMWARE = %q,\n", strings.ToUpper(input.FirmwareMode)))
@@ -50,10 +71,23 @@ func RenderTemplate(input RenderInput) string {
 	builder.WriteString(fmt.Sprintf("  SIZE = %q\n", fmt.Sprintf("%d", input.Resources.RootDiskGiB*1024)))
 	builder.WriteString("]\n\n")
 
+	for _, disk := range input.AdditionalDisks {
+		builder.WriteString("DISK = [\n")
+		builder.WriteString("  TYPE = \"fs\",\n")
+		builder.WriteString(fmt.Sprintf("  SIZE = %q,\n", fmt.Sprintf("%d", disk.SizeGiB*1024)))
+		builder.WriteString(fmt.Sprintf("  FORMAT = %q\n", disk.Format))
+		builder.WriteString("]\n\n")
+	}
+
 	for _, network := range input.Networks {
+		model := network.Model
+		if model == "" {
+			model = "virtio"
+		}
+
 		builder.WriteString("NIC = [\n")
 		builder.WriteString(fmt.Sprintf("  NETWORK = %q,\n", network.Name))
-		builder.WriteString("  MODEL = \"virtio\"\n")
+		builder.WriteString(fmt.Sprintf("  MODEL = %q\n", model))
 		builder.WriteString("]\n\n")
 	}
 

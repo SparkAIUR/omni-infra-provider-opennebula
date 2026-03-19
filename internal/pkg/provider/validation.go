@@ -11,14 +11,25 @@ import (
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/config"
 )
 
+const (
+	schemaV1Alpha1 = "v1alpha1"
+	schemaV1Alpha2 = "v1alpha2"
+)
+
 // ValidateProviderData validates and applies policy to providerData.
 func ValidateProviderData(data *ProviderData, cfg config.Config) error {
 	if data.SchemaVersion == "" {
-		data.SchemaVersion = "v1alpha1"
+		data.SchemaVersion = schemaV1Alpha1
 	}
 
-	if data.SchemaVersion != "v1alpha1" {
+	switch data.SchemaVersion {
+	case schemaV1Alpha1, schemaV1Alpha2:
+	default:
 		return fmt.Errorf("unsupported schemaVersion %q", data.SchemaVersion)
+	}
+
+	if data.SchemaVersion == schemaV1Alpha1 && hasV1Alpha2Fields(data) {
+		return fmt.Errorf("v1alpha2-only fields require schemaVersion %q", schemaV1Alpha2)
 	}
 
 	if data.Flavor == "" && data.Resources == nil {
@@ -51,27 +62,16 @@ func ValidateProviderData(data *ProviderData, cfg config.Config) error {
 		data.TemplateName = cfg.OpenNebula.TemplateName
 	}
 
-	if data.NetworkContextMode == "" {
-		data.NetworkContextMode = cfg.Defaults.NetworkContextMode
+	if !cfg.AllowedTemplate(data.TemplateName) {
+		return fmt.Errorf("template %q is not allowed by runtime config", data.TemplateName)
 	}
 
-	switch data.NetworkContextMode {
-	case "auto", "manual":
-	default:
-		return fmt.Errorf("unsupported networkContextMode %q", data.NetworkContextMode)
+	if err := normalizeNetworks(data, cfg); err != nil {
+		return err
 	}
 
-	if len(data.Networks) == 0 {
-		return fmt.Errorf("at least one network is required")
-	}
-
-	for _, network := range data.Networks {
-		if strings.TrimSpace(network.Name) == "" {
-			return fmt.Errorf("network name cannot be empty")
-		}
-		if !cfg.AllowedNetwork(network.Name) {
-			return fmt.Errorf("network %q is not allowed by runtime config", network.Name)
-		}
+	if data.Datastore == "" {
+		data.Datastore = cfg.StoragePolicies.DefaultDatastore
 	}
 
 	if data.Datastore != "" && !cfg.AllowedDatastore(data.Datastore) {
@@ -102,6 +102,198 @@ func ValidateProviderData(data *ProviderData, cfg config.Config) error {
 		return fmt.Errorf("gpu support is disabled")
 	}
 
+	if err := validateImagePolicy(data, cfg); err != nil {
+		return err
+	}
+
+	if err := validatePlacement(data, cfg); err != nil {
+		return err
+	}
+
+	if err := validateAdditionalDisks(data, cfg); err != nil {
+		return err
+	}
+
+	if err := validateLifecycle(data, cfg); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func normalizeNetworks(data *ProviderData, cfg config.Config) error {
+	originalMode := data.NetworkContextMode
+	if data.NetworkContextMode == "" {
+		data.NetworkContextMode = cfg.Defaults.NetworkContextMode
+	}
+
+	if len(data.Networks) == 0 {
+		return fmt.Errorf("at least one network is required")
+	}
+
+	resolvedModes := map[string]struct{}{}
+	for index := range data.Networks {
+		network := &data.Networks[index]
+		if network.Profile != "" {
+			profile, ok := cfg.ResolveNetworkProfile(network.Profile)
+			if !ok {
+				return fmt.Errorf("network profile %q is not defined", network.Profile)
+			}
+
+			if network.Name == "" {
+				network.Name = profile.NetworkName
+			}
+			if network.Model == "" {
+				network.Model = profile.Model
+			}
+			if network.Mode == "" {
+				network.Mode = profile.ContextMode
+			}
+		}
+
+		if strings.TrimSpace(network.Name) == "" {
+			return fmt.Errorf("network name cannot be empty")
+		}
+		if !cfg.AllowedNetwork(network.Name) {
+			return fmt.Errorf("network %q is not allowed by runtime config", network.Name)
+		}
+
+		if network.Mode != "" {
+			if network.Mode != "auto" && network.Mode != "manual" {
+				return fmt.Errorf("network %q mode must be %q or %q", network.Name, "auto", "manual")
+			}
+			resolvedModes[network.Mode] = struct{}{}
+		}
+	}
+
+	switch data.NetworkContextMode {
+	case "auto", "manual":
+	default:
+		return fmt.Errorf("unsupported networkContextMode %q", data.NetworkContextMode)
+	}
+
+	if len(resolvedModes) > 1 {
+		return fmt.Errorf("all networks must use the same mode when networks[*].mode is set")
+	}
+
+	for mode := range resolvedModes {
+		if originalMode != "" && originalMode != mode {
+			return fmt.Errorf("networkContextMode %q conflicts with network mode %q", data.NetworkContextMode, mode)
+		}
+		data.NetworkContextMode = mode
+	}
+
+	return nil
+}
+
+func validateImagePolicy(data *ProviderData, cfg config.Config) error {
+	if data.ImagePolicy.Mode == "" {
+		if cfg.ImageManagement.ImportOnMiss {
+			data.ImagePolicy.Mode = "reuse-or-import"
+		} else {
+			data.ImagePolicy.Mode = "reuse-only"
+		}
+	}
+
+	switch data.ImagePolicy.Mode {
+	case "reuse-only":
+	case "reuse-or-import":
+		if data.ImagePolicy.Mode == "reuse-or-import" && !cfg.ImageManagement.ImportOnMiss {
+			return fmt.Errorf("imagePolicy.mode %q is not allowed because image import is disabled", data.ImagePolicy.Mode)
+		}
+	default:
+		return fmt.Errorf("unsupported imagePolicy.mode %q", data.ImagePolicy.Mode)
+	}
+
+	return nil
+}
+
+func validatePlacement(data *ProviderData, cfg config.Config) error {
+	if data.Placement.Host != "" {
+		if !cfg.PlacementPolicies.AllowHostOverride {
+			return fmt.Errorf("placement.host is disabled by runtime config")
+		}
+		if !cfg.AllowedHost(data.Placement.Host) {
+			return fmt.Errorf("placement.host %q is not allowed by runtime config", data.Placement.Host)
+		}
+	}
+
+	if data.Placement.Cluster != "" {
+		if !cfg.PlacementPolicies.AllowClusterOverride {
+			return fmt.Errorf("placement.cluster is disabled by runtime config")
+		}
+		if !cfg.AllowedCluster(data.Placement.Cluster) {
+			return fmt.Errorf("placement.cluster %q is not allowed by runtime config", data.Placement.Cluster)
+		}
+	}
+
+	if data.Placement.VMGroup != "" {
+		if !cfg.PlacementPolicies.AllowVMGroupOverride {
+			return fmt.Errorf("placement.vmGroup is disabled by runtime config")
+		}
+		if !cfg.AllowedVMGroup(data.Placement.VMGroup) {
+			return fmt.Errorf("placement.vmGroup %q is not allowed by runtime config", data.Placement.VMGroup)
+		}
+	}
+
+	if data.Placement.Role != "" {
+		return fmt.Errorf("placement.role is not supported yet")
+	}
+
+	return nil
+}
+
+func validateAdditionalDisks(data *ProviderData, cfg config.Config) error {
+	if len(data.AdditionalDisks) == 0 {
+		return nil
+	}
+
+	if cfg.Limits.MaxAdditionalDisks > 0 && len(data.AdditionalDisks) > cfg.Limits.MaxAdditionalDisks {
+		return fmt.Errorf("additionalDisks exceeds provider limit of %d", cfg.Limits.MaxAdditionalDisks)
+	}
+
+	for index, disk := range data.AdditionalDisks {
+		if disk.SizeGiB <= 0 {
+			return fmt.Errorf("additionalDisks[%d].sizeGiB must be > 0", index)
+		}
+		if cfg.Limits.MaxAdditionalDiskGiB > 0 && disk.SizeGiB > cfg.Limits.MaxAdditionalDiskGiB {
+			return fmt.Errorf("additionalDisks[%d].sizeGiB exceeds provider limit of %d", index, cfg.Limits.MaxAdditionalDiskGiB)
+		}
+
+		if disk.Format == "" {
+			data.AdditionalDisks[index].Format = "qcow2"
+		}
+
+		switch data.AdditionalDisks[index].Format {
+		case "qcow2", "raw":
+		default:
+			return fmt.Errorf("additionalDisks[%d].format must be %q or %q", index, "qcow2", "raw")
+		}
+	}
+
+	return nil
+}
+
+func validateLifecycle(data *ProviderData, cfg config.Config) error {
+	if data.Lifecycle.DeleteMode == "" {
+		data.Lifecycle.DeleteMode = "terminate"
+		if cfg.Features.HardDelete {
+			data.Lifecycle.DeleteMode = "hard"
+		}
+	}
+
+	switch data.Lifecycle.DeleteMode {
+	case "normal":
+		data.Lifecycle.DeleteMode = "terminate"
+	case "terminate":
+	case "hard":
+		if data.Lifecycle.DeleteMode == "hard" && !cfg.Features.HardDelete {
+			return fmt.Errorf("lifecycle.deleteMode %q is not allowed by runtime config", data.Lifecycle.DeleteMode)
+		}
+	default:
+		return fmt.Errorf("unsupported lifecycle.deleteMode %q", data.Lifecycle.DeleteMode)
+	}
+
 	return nil
 }
 
@@ -124,6 +316,16 @@ func ResolveResources(data ProviderData, cfg config.Config) (ResolvedResources, 
 			return ResolvedResources{}, fmt.Errorf("resources must define cpu, vcpu, memoryMiB, and rootDiskGiB")
 		}
 
+		if cfg.Limits.MaxVCPU > 0 && data.Resources.VCPU > cfg.Limits.MaxVCPU {
+			return ResolvedResources{}, fmt.Errorf("resources.vcpu exceeds provider limit of %d", cfg.Limits.MaxVCPU)
+		}
+		if cfg.Limits.MaxMemoryMiB > 0 && data.Resources.MemoryMiB > cfg.Limits.MaxMemoryMiB {
+			return ResolvedResources{}, fmt.Errorf("resources.memoryMiB exceeds provider limit of %d", cfg.Limits.MaxMemoryMiB)
+		}
+		if cfg.Limits.MaxRootDiskGiB > 0 && data.Resources.RootDiskGiB > cfg.Limits.MaxRootDiskGiB {
+			return ResolvedResources{}, fmt.Errorf("resources.rootDiskGiB exceeds provider limit of %d", cfg.Limits.MaxRootDiskGiB)
+		}
+
 		return ResolvedResources{
 			CPU:         data.Resources.CPU,
 			VCPU:        data.Resources.VCPU,
@@ -138,10 +340,28 @@ func ResolveResources(data ProviderData, cfg config.Config) (ResolvedResources, 
 		rootDiskGiB = data.RootDiskGiB
 	}
 
+	if cfg.Limits.MaxRootDiskGiB > 0 && rootDiskGiB > cfg.Limits.MaxRootDiskGiB {
+		return ResolvedResources{}, fmt.Errorf("rootDiskGiB exceeds provider limit of %d", cfg.Limits.MaxRootDiskGiB)
+	}
+
 	return ResolvedResources{
 		CPU:         flavor.CPU,
 		VCPU:        flavor.VCPU,
 		MemoryMiB:   flavor.MemoryMiB,
 		RootDiskGiB: rootDiskGiB,
 	}, nil
+}
+
+func hasV1Alpha2Fields(data *ProviderData) bool {
+	if data.ImagePolicy.Mode != "" || data.Placement.Host != "" || data.Placement.Cluster != "" || data.Placement.VMGroup != "" || data.Placement.Role != "" || len(data.AdditionalDisks) > 0 || data.Lifecycle.DeleteMode != "" {
+		return true
+	}
+
+	for _, network := range data.Networks {
+		if network.Profile != "" || network.Mode != "" || network.Model != "" {
+			return true
+		}
+	}
+
+	return false
 }

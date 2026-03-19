@@ -28,6 +28,7 @@ type ResolveRequest struct {
 	SchematicID      string
 	Arch             string
 	Datastore        string
+	AllowImport      *bool
 	ExistingImageID  int
 	ExistingChecksum string
 	ExistingSource   string
@@ -105,7 +106,12 @@ func (m *Manager) Resolve(ctx context.Context, request ResolveRequest) (Result, 
 		return Result{}, err
 	}
 
-	if !m.config.ImageManagement.ImportOnMiss {
+	allowImport := m.config.ImageManagement.ImportOnMiss
+	if request.AllowImport != nil {
+		allowImport = *request.AllowImport
+	}
+
+	if !allowImport {
 		m.observe("lookup", "error")
 		return Result{}, err
 	}

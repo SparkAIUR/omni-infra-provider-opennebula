@@ -8,13 +8,16 @@ package provider
 //
 // Example:
 //
-//	schemaVersion: v1alpha1
+//	schemaVersion: v1alpha2
 //	flavor: medium
 //	templateName: talos-omni-base
 //	datastore: default
 //	networks:
-//	  - name: prod-lan
-//	networkContextMode: auto
+//	  - profile: prod
+//	imagePolicy:
+//	  mode: reuse-or-import
+//	placement:
+//	  host: compute-01
 type ProviderData struct {
 	SchemaVersion      string             `json:"schemaVersion,omitempty" yaml:"schemaVersion,omitempty"`
 	Flavor             string             `json:"flavor,omitempty" yaml:"flavor,omitempty"`
@@ -29,6 +32,10 @@ type ProviderData struct {
 	Graphics           GraphicsConfig     `json:"graphics,omitempty" yaml:"graphics,omitempty"`
 	Tags               map[string]string  `json:"tags,omitempty" yaml:"tags,omitempty"`
 	GPU                *GPURequest        `json:"gpu,omitempty" yaml:"gpu,omitempty"`
+	ImagePolicy        ImagePolicy        `json:"imagePolicy,omitempty" yaml:"imagePolicy,omitempty"`
+	Placement          PlacementPolicy    `json:"placement,omitempty" yaml:"placement,omitempty"`
+	AdditionalDisks    []AdditionalDisk   `json:"additionalDisks,omitempty" yaml:"additionalDisks,omitempty"`
+	Lifecycle          LifecyclePolicy    `json:"lifecycle,omitempty" yaml:"lifecycle,omitempty"`
 }
 
 // ResourceOverrides allows operator-approved explicit resource sizing.
@@ -39,9 +46,12 @@ type ResourceOverrides struct {
 	RootDiskGiB int    `json:"rootDiskGiB,omitempty" yaml:"rootDiskGiB,omitempty"`
 }
 
-// NetworkRef identifies an OpenNebula network by name.
+// NetworkRef identifies an OpenNebula network by name or profile.
 type NetworkRef struct {
-	Name string `json:"name" yaml:"name"`
+	Name    string `json:"name,omitempty" yaml:"name,omitempty"`
+	Profile string `json:"profile,omitempty" yaml:"profile,omitempty"`
+	Mode    string `json:"mode,omitempty" yaml:"mode,omitempty"`
+	Model   string `json:"model,omitempty" yaml:"model,omitempty"`
 }
 
 // StaticNIC describes manual OpenNebula contextual network values.
@@ -74,12 +84,44 @@ type GPURequest struct {
 	Profile string `json:"profile,omitempty" yaml:"profile,omitempty"`
 }
 
+// ImagePolicy controls whether the provider may import missing Talos images.
+type ImagePolicy struct {
+	Mode string `json:"mode,omitempty" yaml:"mode,omitempty"`
+}
+
+// PlacementPolicy controls safe placement overrides exposed to self-service users.
+type PlacementPolicy struct {
+	Host    string `json:"host,omitempty" yaml:"host,omitempty"`
+	Cluster string `json:"cluster,omitempty" yaml:"cluster,omitempty"`
+	VMGroup string `json:"vmGroup,omitempty" yaml:"vmGroup,omitempty"`
+	Role    string `json:"role,omitempty" yaml:"role,omitempty"`
+}
+
+// AdditionalDisk defines a volatile extra disk attached to the Talos VM.
+type AdditionalDisk struct {
+	Name    string `json:"name,omitempty" yaml:"name,omitempty"`
+	SizeGiB int    `json:"sizeGiB" yaml:"sizeGiB"`
+	Format  string `json:"format,omitempty" yaml:"format,omitempty"`
+}
+
+// LifecyclePolicy controls per-machine deletion behavior.
+type LifecyclePolicy struct {
+	DeleteMode string `json:"deleteMode,omitempty" yaml:"deleteMode,omitempty"`
+}
+
 // ResolvedResources is the effective VM sizing after defaults and validation.
 type ResolvedResources struct {
 	CPU         string
 	VCPU        int
 	MemoryMiB   int
 	RootDiskGiB int
+}
+
+// ResolvedPlacement is the rendered placement policy used in the OpenNebula template.
+type ResolvedPlacement struct {
+	SchedRequirements string
+	VMGroupName       string
+	VMGroupRole       string
 }
 
 func networkNames(networks []NetworkRef) []string {

@@ -118,6 +118,7 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 			SetLastError(pctx.State, err.Error())
 			return err
 		}
+		SetDeleteMode(pctx.State, data.Lifecycle.DeleteMode)
 
 		schematicID := pctx.State.TypedSpec().Value.SchematicId
 		imageName, err := p.renderImageName(pctx.GetTalosVersion(), schematicID)
@@ -132,6 +133,7 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 			TalosVersion:     pctx.GetTalosVersion(),
 			SchematicID:      schematicID,
 			Datastore:        data.Datastore,
+			AllowImport:      imageImportPreference(data),
 			ExistingImageID:  int(pctx.State.TypedSpec().Value.ImageId),
 			ExistingChecksum: pctx.State.TypedSpec().Value.ImageChecksum,
 			ExistingSource:   pctx.State.TypedSpec().Value.ImageSource,
@@ -208,11 +210,13 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 			ImageName:       imageResult.Image.Name,
 			Datastore:       data.Datastore,
 			Resources:       resolvedResources,
-			Networks:        networks,
+			Networks:        renderedNetworks(data, networks),
 			FirmwareMode:    data.Firmware.Mode,
 			SecureBoot:      effectiveSecureBoot(&data),
 			GraphicsEnabled: effectiveGraphicsEnabled(&data),
 			ContextKV:       contextKV,
+			Placement:       resolvedPlacement(data),
+			AdditionalDisks: data.AdditionalDisks,
 		})
 
 		stepLogger := provisionLogger(logger, pctx.State, pctx.GetRequestID(),
@@ -328,4 +332,48 @@ func (p *Provisioner) renderImageName(talosVersion, schematicID string) (string,
 	}
 
 	return builder.String(), nil
+}
+
+func imageImportPreference(data ProviderData) *bool {
+	switch data.ImagePolicy.Mode {
+	case "reuse-only":
+		return boolPtr(false)
+	case "reuse-or-import":
+		return boolPtr(true)
+	default:
+		return nil
+	}
+}
+
+func renderedNetworks(data ProviderData, resolved []opennebula.NetworkRef) []RenderedNetwork {
+	models := map[string]string{}
+	for _, network := range data.Networks {
+		models[network.Name] = network.Model
+	}
+
+	rendered := make([]RenderedNetwork, 0, len(resolved))
+	for _, network := range resolved {
+		rendered = append(rendered, RenderedNetwork{
+			Name:  network.Name,
+			Model: models[network.Name],
+		})
+	}
+
+	return rendered
+}
+
+func resolvedPlacement(data ProviderData) ResolvedPlacement {
+	requirements := make([]string, 0, 2)
+	if data.Placement.Host != "" {
+		requirements = append(requirements, fmt.Sprintf(`NAME = "%s"`, data.Placement.Host))
+	}
+	if data.Placement.Cluster != "" {
+		requirements = append(requirements, fmt.Sprintf(`CLUSTER = "%s"`, data.Placement.Cluster))
+	}
+
+	return ResolvedPlacement{
+		SchedRequirements: strings.Join(requirements, " & "),
+		VMGroupName:       data.Placement.VMGroup,
+		VMGroupRole:       data.Placement.Role,
+	}
 }

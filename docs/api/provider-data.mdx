@@ -1,22 +1,28 @@
 ---
 title: Provider data
-description: Public v1alpha1 machine-class contract for the OpenNebula provider.
+description: Public machine-class contract for the OpenNebula provider.
 ---
 
 # Provider data
 
 `providerData` is the machine-class payload that Omni passes to the OpenNebula provider for each provision request.
 
-## Supported schema version
+## Supported schema versions
 
 ```yaml
 schemaVersion: v1alpha1
 ```
 
+```yaml
+schemaVersion: v1alpha2
+```
+
+`v1alpha1` remains supported for compatibility. `v1alpha2` adds image policy, placement, additional disks, network profiles, per-network mode/model hints, and request-level delete behavior.
+
 ## Supported fields
 
 ```yaml
-schemaVersion: v1alpha1
+schemaVersion: v1alpha2
 flavor: small
 resources:
   cpu: "4"
@@ -26,7 +32,9 @@ resources:
 templateName: talos-omni-base
 datastore: ssd-primary
 networks:
-  - name: talos-prod
+  - profile: talos-prod
+    model: e1000
+    mode: auto
 networkContextMode: auto
 staticNetwork:
   - name: eth0
@@ -41,6 +49,19 @@ firmware:
   secureBoot: true
 graphics:
   enabled: false
+imagePolicy:
+  mode: reuse-or-import
+placement:
+  host: compute-01
+  cluster: cluster-a
+  vmGroup: control-plane
+  role: master
+additionalDisks:
+  - name: state
+    sizeGiB: 20
+    format: qcow2
+lifecycle:
+  deleteMode: normal
 tags:
   role: worker
 gpu:
@@ -50,11 +71,15 @@ gpu:
 
 ## Validation rules
 
-- `schemaVersion` must be `v1alpha1`.
+- `schemaVersion` must be `v1alpha1` or `v1alpha2`.
+- `v1alpha1` rejects `v1alpha2`-only fields.
 - Set either `flavor` or `resources`, not both.
 - `networkContextMode` must be `auto` or `manual`.
 - At least one entry in `networks` is required.
 - `manual` networking requires `staticNetwork`.
+- `imagePolicy.mode` supports `reuse-only` and `reuse-or-import`.
+- `placement` and `additionalDisks` are policy-gated by the provider runtime config.
+- `lifecycle.deleteMode` supports `normal` and `hard`.
 - `gpu` remains schema-visible but is rejected unless the feature flag enables it.
 - Hostname is derived from the Omni request ID and is not user-configurable.
 
@@ -78,6 +103,12 @@ ETH0_IP = "..."
 ETH0_GATEWAY = "..."
 ETH0_DNS = "..."
 ```
+
+## Image behavior
+
+- `reuse-only` means the provider must find an existing Talos image in OpenNebula.
+- `reuse-or-import` allows the provider to import a missing Talos image when runtime config enables import and provides artifact/checksum URLs.
+- Imported image ID, source URL, and checksum are persisted in provider state.
 
 ## Examples
 

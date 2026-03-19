@@ -12,6 +12,7 @@ import (
 
 const (
 	annotationMachineUUID = "opennebula.omni.sidero.dev/machine-uuid"
+	annotationDeleteMode  = "opennebula.omni.sidero.dev/delete-mode"
 )
 
 func setStringAnnotation(machine *resources.Machine, key, value string) {
@@ -31,6 +32,21 @@ func SetMachineUUID(machine *resources.Machine, value string) {
 // GetMachineUUID reads the generated machine UUID from the resource annotations.
 func GetMachineUUID(machine *resources.Machine) string {
 	value, ok := machine.Metadata().Annotations().Get(annotationMachineUUID)
+	if !ok {
+		return ""
+	}
+
+	return value
+}
+
+// SetDeleteMode stores the effective lifecycle.deleteMode on the resource annotations.
+func SetDeleteMode(machine *resources.Machine, value string) {
+	setStringAnnotation(machine, annotationDeleteMode, value)
+}
+
+// GetDeleteMode reads the effective lifecycle.deleteMode from the resource annotations.
+func GetDeleteMode(machine *resources.Machine) string {
+	value, ok := machine.Metadata().Annotations().Get(annotationDeleteMode)
 	if !ok {
 		return ""
 	}

@@ -6,33 +6,37 @@ package provider
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/siderolabs/omni/client/pkg/infra/provision"
 	infrares "github.com/siderolabs/omni/client/pkg/omni/resources/infra"
 	"go.uber.org/zap"
+	"go.yaml.in/yaml/v4"
 
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/opennebula"
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/provider/resources"
 )
 
 // Deprovision implements infra.Provisioner.
-func (p *Provisioner) Deprovision(ctx context.Context, logger *zap.Logger, machine *resources.Machine, _ *infrares.MachineRequest) error {
+func (p *Provisioner) Deprovision(ctx context.Context, logger *zap.Logger, machine *resources.Machine, machineRequest *infrares.MachineRequest) error {
 	start := time.Now()
-	err := p.deprovision(ctx, logger, machine)
+	err := p.deprovision(ctx, logger, machine, machineRequest)
 	p.observeDeprovision(err, time.Since(start))
 	return err
 }
 
-func (p *Provisioner) deprovision(ctx context.Context, logger *zap.Logger, machine *resources.Machine) error {
+func (p *Provisioner) deprovision(ctx context.Context, logger *zap.Logger, machine *resources.Machine, machineRequest *infrares.MachineRequest) error {
 	vmID := GetVMID(machine)
 	if vmID == 0 {
 		provisionLogger(logger, machine, machine.Metadata().ID()).Info("vm id is not set, nothing to delete")
 		return nil
 	}
 
+	deleteHard := p.resolveDeleteMode(machine, machineRequest)
+
 	SetPhase(machine, "delete_requested")
-	if err := p.client.TerminateVM(ctx, vmID, p.config.Features.HardDelete); err != nil {
+	if err := p.client.TerminateVM(ctx, vmID, deleteHard); err != nil {
 		SetLastRetryClassification(machine, string(opennebula.ClassifyError(err)))
 		if opennebula.IsNotFoundError(err) {
 			provisionLogger(logger, machine, machine.Metadata().ID()).Info("vm already deleted", zap.Int("vm_id", vmID))
@@ -56,6 +60,33 @@ func (p *Provisioner) deprovision(ctx context.Context, logger *zap.Logger, machi
 	return nil
 }
 
+func (p *Provisioner) resolveDeleteMode(machine *resources.Machine, machineRequest *infrares.MachineRequest) bool {
+	if machine != nil {
+		if deleteMode := GetDeleteMode(machine); deleteMode != "" {
+			return deleteMode == "hard"
+		}
+	}
+
+	if machineRequest == nil || strings.TrimSpace(machineRequest.TypedSpec().Value.ProviderData) == "" {
+		return p.config.Features.HardDelete
+	}
+
+	var data ProviderData
+	if err := yaml.Unmarshal([]byte(machineRequest.TypedSpec().Value.ProviderData), &data); err != nil {
+		return p.config.Features.HardDelete
+	}
+
+	if data.Lifecycle.DeleteMode == "hard" && p.config.Features.HardDelete {
+		return true
+	}
+
+	if data.Lifecycle.DeleteMode == "terminate" || data.Lifecycle.DeleteMode == "normal" {
+		return false
+	}
+
+	return p.config.Features.HardDelete
+}
+
 func clearProvisionedState(machine *resources.Machine) {
 	SetLastError(machine, "")
 	SetLastRetryClassification(machine, "")
@@ -69,6 +100,7 @@ func clearProvisionedState(machine *resources.Machine) {
 	SetDatastore(machine, "")
 	SetFlavor(machine, "")
 	SetNetworkNames(machine, nil)
+	SetDeleteMode(machine, "")
 	machine.TypedSpec().Value.LastSuccessfulPhaseAt = ""
 	machine.TypedSpec().Value.SchematicId = ""
 	machine.TypedSpec().Value.TalosVersion = ""

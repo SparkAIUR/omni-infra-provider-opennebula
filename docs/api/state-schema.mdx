@@ -23,19 +23,25 @@ message MachineSpec {
   string flavor = 10;
   string phase = 11;
   string last_error = 12;
+  int32 image_id = 13;
+  string image_source = 14;
+  string image_checksum = 15;
+  string last_successful_phase_at = 16;
+  string last_retry_classification = 17;
 }
 ```
 
 ## Why these fields exist
 
 - `vm_id` and `vm_name` identify the provisioned VM.
-- `template_*`, `image_name`, `datastore`, and `network_names` capture the resolved infrastructure inputs.
+- `template_*`, `image_*`, `datastore`, and `network_names` capture the resolved infrastructure inputs.
 - `schematic_id` and `talos_version` explain which Talos artifact path was chosen.
 - `flavor` records the selected named shape when used.
-- `phase` and `last_error` support retry and troubleshooting.
+- `phase`, `last_error`, `last_successful_phase_at`, and `last_retry_classification` support retry and troubleshooting.
 
 ## Lifecycle expectations
 
 - Provisioning writes state as infrastructure inputs become concrete.
-- Deprovision clears infrastructure identity fields and marks the phase as `deleted`.
+- Image imports persist enough metadata to resume safely after provider restart.
+- Deprovision clears infrastructure identity fields and marks the phase as `delete_complete`.
 - Missing VMs during deprovision are treated as already deleted success.

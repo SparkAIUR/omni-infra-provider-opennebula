@@ -64,3 +64,36 @@ spec:
       graphics:
         enabled: false
 ```
+
+## v1alpha2 machine with import-on-miss, placement, and extra disk
+
+```yaml
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: opennebula-control-plane
+spec:
+  autoprovision:
+    providerid: opennebula
+    providerdata: |
+      schemaVersion: v1alpha2
+      flavor: small
+      datastore: ssd-primary
+      networks:
+        - profile: talos-prod
+          model: virtio
+      imagePolicy:
+        mode: reuse-or-import
+      placement:
+        host: compute-01
+        vmGroup: control-plane
+        role: master
+      additionalDisks:
+        - name: state
+          sizeGiB: 20
+          format: qcow2
+      lifecycle:
+        deleteMode: normal
+      graphics:
+        enabled: false
+```
