@@ -1,67 +1,91 @@
-# this deployment assumes that libvirt is running on the same host.
-# it mounts /var/run/libvirt/libvirt-sock from the host into the container.
-# you also have the option to use SSH based authentication.
+# Example deployment using an OpenNebula session token.
+# Replace placeholder values before applying this manifest.
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: omni-infra-provider-libvirt
+  name: omni-infra-provider-opennebula
   namespace: default
 data:
   config.yaml: |
-    libvirt:
-      uri: 'qemu:///system'
+    providerID: opennebula
+    opennebula:
+      endpoint: "https://opennebula.example.com/RPC2"
+      templateName: "talos-omni-base"
+      allowedDatastores:
+        - "ssd-primary"
+      allowedNetworks:
+        - "talos-prod"
+        - "talos-mgmt"
+      imageNamePattern: "talos-opennebula-{{ .Arch }}-{{ .TalosVersion }}-schematic-{{ .SchematicID }}"
+    defaults:
+      flavor: "small"
+      firmware: "uefi"
+      secureBoot: true
+      graphicsEnabled: false
+      networkContextMode: "auto"
+      hostnameStrategy: "vm-name"
+    features:
+      allowExplicitResources: true
+      enableGPU: false
+      hardDelete: false
+    timeouts:
+      instantiate: 2m
+      vmReady: 10m
+      terminate: 5m
+    flavors:
+      small:
+        cpu: "2"
+        vcpu: 2
+        memoryMiB: 4096
+        rootDiskGiB: 40
+      medium:
+        cpu: "4"
+        vcpu: 4
+        memoryMiB: 8192
+        rootDiskGiB: 80
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: omni-infra-provider-libvirt
+  name: omni-infra-provider-opennebula
   namespace: default
 type: Opaque
 stringData:
   # fill in the correct values here
   OMNI_ENDPOINT: "https://your-omni-instance.example.com"
   OMNI_SERVICE_ACCOUNT_KEY: "your-service-account-key"
+  OPENNEBULA_SESSION: "username:password"
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: omni-infra-provider-libvirt
+  name: omni-infra-provider-opennebula
   namespace: default
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: omni-infra-provider-libvirt
+      app: omni-infra-provider-opennebula
   template:
     metadata:
       labels:
-        app: omni-infra-provider-libvirt
+        app: omni-infra-provider-opennebula
     spec:
-      hostNetwork: true
       containers:
-        - name: omni-infra-provider-libvirt
+        - name: omni-infra-provider-opennebula
           # replace TAG with a valid image tag
-          image: ghcr.io/siderolabs/omni-infra-provider-libvirt:TAG
+          image: docker.io/nudevco/omni-infra-provider-opennebula:TAG
           args:
             - --config-file=/config.yaml
           envFrom:
             - secretRef:
-                name: omni-infra-provider-libvirt
-          env:
-            - name: USER
-              value: "omni"
+                name: omni-infra-provider-opennebula
           volumeMounts:
             - name: config
               mountPath: /config.yaml
               subPath: config.yaml
-            - name: libvirt-sock
-              mountPath: /var/run/libvirt/libvirt-sock
       volumes:
         - name: config
           configMap:
-            name: omni-infra-provider-libvirt
-        - name: libvirt-sock
-          hostPath:
-            path: /var/run/libvirt/libvirt-sock
-            type: Socket
+            name: omni-infra-provider-opennebula

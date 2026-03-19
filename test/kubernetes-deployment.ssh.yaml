@@ -1,80 +1,91 @@
-# this deployment connects to libvirt on a remote host via SSH.
-# the SSH key must be stored in a Secret and mounted into the container.
-# ensure the SSH user has access to libvirt on the remote host.
+# Example deployment using OpenNebula username/password credentials.
+# Replace placeholder values before applying this manifest.
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: omni-infra-provider-libvirt
+  name: omni-infra-provider-opennebula
   namespace: default
 data:
   config.yaml: |
-    libvirt:
-      uri: 'qemu+libssh://user@hostname/system?known_hosts_verify=ignore'
+    providerID: opennebula
+    opennebula:
+      endpoint: "https://opennebula.example.com/RPC2"
+      templateName: "talos-omni-base"
+      allowedDatastores:
+        - "ceph-images"
+      allowedNetworks:
+        - "talos-prod"
+      imageNamePattern: "talos-opennebula-{{ .Arch }}-{{ .TalosVersion }}-schematic-{{ .SchematicID }}"
+    defaults:
+      flavor: "controlplane"
+      firmware: "uefi"
+      secureBoot: true
+      graphicsEnabled: false
+      networkContextMode: "manual"
+      hostnameStrategy: "vm-name"
+    features:
+      allowExplicitResources: true
+      enableGPU: false
+      hardDelete: false
+    timeouts:
+      instantiate: 2m
+      vmReady: 15m
+      terminate: 5m
+    flavors:
+      controlplane:
+        cpu: "4"
+        vcpu: 4
+        memoryMiB: 8192
+        rootDiskGiB: 80
+      worker:
+        cpu: "8"
+        vcpu: 8
+        memoryMiB: 16384
+        rootDiskGiB: 120
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: omni-infra-provider-libvirt
+  name: omni-infra-provider-opennebula
   namespace: default
 type: Opaque
 stringData:
   # fill in the correct values here
   OMNI_ENDPOINT: "https://your-omni-instance.example.com"
   OMNI_SERVICE_ACCOUNT_KEY: "your-service-account-key"
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: omni-infra-provider-libvirt-ssh
-  namespace: default
-type: Opaque
-stringData:
-  # fill in the SSH private key here
-  id_rsa: |
-    -----BEGIN OPENSSH PRIVATE KEY-----
-    ...
-    -----END OPENSSH PRIVATE KEY-----
+  OPENNEBULA_USERNAME: "oneadmin"
+  OPENNEBULA_PASSWORD: "replace-me"
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: omni-infra-provider-libvirt
+  name: omni-infra-provider-opennebula
   namespace: default
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: omni-infra-provider-libvirt
+      app: omni-infra-provider-opennebula
   template:
     metadata:
       labels:
-        app: omni-infra-provider-libvirt
+        app: omni-infra-provider-opennebula
     spec:
       containers:
-        - name: omni-infra-provider-libvirt
+        - name: omni-infra-provider-opennebula
           # replace TAG with a valid image tag
-          image: ghcr.io/siderolabs/omni-infra-provider-libvirt:TAG
+          image: docker.io/nudevco/omni-infra-provider-opennebula:TAG
           args:
             - --config-file=/config.yaml
           envFrom:
             - secretRef:
-                name: omni-infra-provider-libvirt
-          env:
-            - name: USER
-              value: "omni"
+                name: omni-infra-provider-opennebula
           volumeMounts:
             - name: config
               mountPath: /config.yaml
               subPath: config.yaml
-            - name: ssh-key
-              mountPath: /.ssh
-              readOnly: true
       volumes:
         - name: config
           configMap:
-            name: omni-infra-provider-libvirt
-        - name: ssh-key
-          secret:
-            secretName: omni-infra-provider-libvirt-ssh
-            defaultMode: 0400
+            name: omni-infra-provider-opennebula

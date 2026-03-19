@@ -2,540 +2,268 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Package provider implements libvirt infra provider core.
+// Package provider implements the OpenNebula Omni infrastructure provider core.
 package provider
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
-	"errors"
 	"fmt"
-	"os"
 	"strings"
+	"text/template"
 	"time"
 
-	"github.com/digitalocean/go-libvirt"
 	"github.com/google/uuid"
 	"github.com/siderolabs/omni/client/pkg/infra/provision"
 	"go.uber.org/zap"
-	"libvirt.org/go/libvirtxml"
 
-	"github.com/siderolabs/omni-infra-provider-libvirt/api/specs"
-	"github.com/siderolabs/omni-infra-provider-libvirt/internal/pkg/provider/cidata"
-	"github.com/siderolabs/omni-infra-provider-libvirt/internal/pkg/provider/resources"
+	providerconfig "github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/config"
+	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/opennebula"
+	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/provider/resources"
 )
 
-const (
-	MiB             = uint64(1024 * 1024)
-	GiB             = MiB * 1024
-	diskFormatQcow2 = "qcow2"
-	diskFormatRaw   = "raw"
-)
-
-// Provisioner implements Talos emulator infra provider.
+// Provisioner orchestrates Omni requests against OpenNebula.
 type Provisioner struct {
-	libvirtClient *libvirt.Libvirt
-	imageCache    *ImageCache
+	client opennebula.Client
+	config providerconfig.Config
 }
 
-// NewProvisioner creates a new provisioner.
-func NewProvisioner(libvirtClient *libvirt.Libvirt, imageCache *ImageCache) *Provisioner {
+// NewProvisioner creates a new OpenNebula provisioner.
+func NewProvisioner(client opennebula.Client, cfg providerconfig.Config) *Provisioner {
 	return &Provisioner{
-		libvirtClient: libvirtClient,
-		imageCache:    imageCache,
+		client: client,
+		config: cfg,
 	}
 }
-
-var errUploadImage = errors.New("error uploading image")
 
 // ProvisionSteps implements infra.Provisioner.
-//
-//nolint:gocognit,gocyclo,cyclop,maintidx
 func (p *Provisioner) ProvisionSteps() []provision.Step[*resources.Machine] {
 	return []provision.Step[*resources.Machine]{
-		provision.NewStep(
-			"generateUUID",
-			func(ctx context.Context, logger *zap.Logger, pctx provision.Context[*resources.Machine]) error {
-				newUUID := uuid.New()
-
-				dom, err := p.libvirtClient.DomainLookupByUUID(libvirt.UUID(newUUID))
-				if err != nil {
-					if dom.UUID != libvirt.UUID(newUUID) {
-						// found unused UUID
-						pctx.State.TypedSpec().Value.Uuid = newUUID.String()
-						pctx.SetMachineUUID(pctx.State.TypedSpec().Value.Uuid)
-
-						return nil
-					}
-
-					return provision.NewRetryError(err, time.Second*10)
-				}
-
-				return provision.NewRetryInterval(time.Second * 1)
-			},
-		),
-
-		provision.NewStep(
-			"createSchematic",
-			func(ctx context.Context, logger *zap.Logger, pctx provision.Context[*resources.Machine]) error {
-				schematicID, err := pctx.GenerateSchematicID(ctx, logger)
-				if err != nil {
-					return provision.NewRetryErrorf(time.Second*10, "error generating schematic ID: %w", err)
-				}
-
-				pctx.State.TypedSpec().Value.SchematicId = schematicID
-				logger.Info("created schematic " + schematicID)
-
-				return nil
-			},
-		),
-
-		provision.NewStep(
-			"provisionPrimaryDisk",
-			func(ctx context.Context, logger *zap.Logger, pctx provision.Context[*resources.Machine]) error {
-				var data Data
-
-				err := pctx.UnmarshalProviderData(&data)
-				if err != nil {
-					return err
-				}
-
-				schematicID := pctx.State.TypedSpec().Value.SchematicId
-				talosVersion := pctx.GetTalosVersion()
-
-				// Acquire image from cache (downloads if needed, deduplicates concurrent requests)
-				filePath, err := p.imageCache.Acquire(ctx, schematicID, talosVersion)
-				if err != nil {
-					return provision.NewRetryErrorf(time.Second*10, "error fetching image: %w", err)
-				}
-				defer p.imageCache.Release(schematicID, talosVersion)
-
-				vmName := pctx.GetRequestID()
-				volName := fmt.Sprintf("%s.qcow2", vmName)
-				pctx.State.TypedSpec().Value.PoolName = data.StoragePool
-
-				vol, err := createVolume(p.libvirtClient, data.StoragePool, volName, diskFormatQcow2, data.DiskSize)
-				if err != nil {
-					return fmt.Errorf("error creating disk: %w", err)
-				}
-
-				fh, err := os.Open(filePath)
-				if err != nil {
-					return fmt.Errorf("error opening local disk image: %w", err)
-				}
-				defer fh.Close() //nolint:errcheck
-
-				r, err := gzip.NewReader(fh)
-				if err != nil {
-					return fmt.Errorf("error opening gzip image reader: %w", err)
-				}
-				defer r.Close() //nolint:errcheck
-
-				err = p.libvirtClient.StorageVolUpload(vol, r, 0, 0, 0)
-				if err != nil {
-					return fmt.Errorf("%w: %w", errUploadImage, err)
-				}
-
-				volSize := data.DiskSize * GiB
-
-				err = p.libvirtClient.StorageVolResize(vol, volSize, 0)
-				if err != nil {
-					return fmt.Errorf("expanding volume %s to size %d failed", volName, volSize)
-				}
-
-				pctx.State.TypedSpec().Value.VmVolName = volName
-
-				return nil
-			},
-		),
-
-		provision.NewStep(
-			"provisionAdditionalDisks",
-			func(ctx context.Context, logger *zap.Logger, pctx provision.Context[*resources.Machine]) error {
-				var data Data
-
-				err := pctx.UnmarshalProviderData(&data)
-				if err != nil {
-					return err
-				}
-
-				if len(data.AdditionalDisks) > 0 {
-					var (
-						additionalDisks []*specs.AdditionalDisk
-						vmName          = pctx.GetRequestID()
-					)
-
-					for idx, additionalDiskSpec := range data.AdditionalDisks {
-						volName := fmt.Sprintf("%s-%d-%s.qcow2", vmName, idx, additionalDiskSpec.Type)
-						volSize := additionalDiskSpec.Size * GiB
-
-						_, err = createVolume(p.libvirtClient, data.StoragePool, volName, diskFormatQcow2, volSize)
-						if err != nil {
-							return fmt.Errorf("error creating disk: %w", err)
-						}
-
-						additionalDisks = append(
-							additionalDisks,
-							&specs.AdditionalDisk{
-								Type:    additionalDiskSpec.Type,
-								VolName: volName,
-							},
-						)
-					}
-
-					pctx.State.TypedSpec().Value.AdditionalDisks = additionalDisks
-				}
-
-				logger.Info("provisioned additional disks", zap.Int("count", len(data.AdditionalDisks)))
-
-				return nil
-			},
-		),
-
-		provision.NewStep(
-			"provisionCidata",
-			func(ctx context.Context, logger *zap.Logger, pctx provision.Context[*resources.Machine]) error {
-				// create CIDATA for nocloud, contains the hostname
-				// docs: https://docs.siderolabs.com/talos/latest/platform-specific-installations/cloud-platforms/nocloud#cdrom%2Fusb
-				var data Data
-
-				err := pctx.UnmarshalProviderData(&data)
-				if err != nil {
-					return err
-				}
-
-				var (
-					vmName  = pctx.GetRequestID()
-					volName = fmt.Sprintf("%s-cidata.iso", vmName)
-
-					metadata    = bytes.NewReader(cidata.MetaData(vmName))
-					userdata    = bytes.NewReader([]byte("#cloud-config\n")) // empty
-					networkdata = bytes.NewReader(cidata.NetworkData())      // TODO: allow to be passed by user?
-				)
-
-				isoData, err := cidata.GenerateCidataISO(metadata, userdata, networkdata)
-				if err != nil {
-					return fmt.Errorf("error generating cidata ISO: %w", err)
-				}
-
-				pool, err := p.libvirtClient.StoragePoolLookupByName(data.StoragePool)
-				if err != nil {
-					return fmt.Errorf("error looking up storage pool: %w", err)
-				}
-
-				// if volume exists, delete old version
-				if vol, errGetVol := getVol(p.libvirtClient, data.StoragePool, volName); errGetVol == nil {
-					if errVolDel := p.libvirtClient.StorageVolDelete(vol, 0); errVolDel != nil {
-						return fmt.Errorf("delete old cidata volume: %w, name: %s", errVolDel, volName)
-					}
-				}
-
-				volSize := uint64(len(isoData))
-
-				vol, err := createVolume(p.libvirtClient, pool.Name, volName, diskFormatRaw, volSize)
-				if err != nil {
-					return fmt.Errorf("error creating cidata volume: %w", err)
-				}
-
-				err = p.libvirtClient.StorageVolUpload(vol, bytes.NewReader(isoData), 0, 0, 0)
-				if err != nil {
-					return fmt.Errorf("error uploading cidata ISO: %w", err)
-				}
-
-				pctx.State.TypedSpec().Value.CidataVolName = volName
-
-				logger.Info("provisioned cidata ISO", zap.String("volume", volName))
-
-				return nil
-			},
-		),
-
-		provision.NewStep(
-			"createVM",
-			func(ctx context.Context, logger *zap.Logger, pctx provision.Context[*resources.Machine]) error {
-				volName := pctx.State.TypedSpec().Value.VmVolName
-				if volName == "" {
-					return provision.NewRetryErrorf(time.Second*10, "waiting for image")
-				}
-
-				var data Data
-
-				err := pctx.UnmarshalProviderData(&data)
-				if err != nil {
-					return err
-				}
-
-				vmName := pctx.GetRequestID()
-
-				// assemble primary disk volume
-
-				vol, err := getVol(p.libvirtClient, data.StoragePool, volName)
-				if err != nil {
-					return provision.NewRetryErrorf(time.Second*10, "error fetching volume: %w", err)
-				}
-
-				disks := []libvirtxml.DomainDisk{
-					{
-						Device: "disk",
-						Driver: &libvirtxml.DomainDiskDriver{
-							Name:  "qemu",
-							Type:  "qcow2",
-							Cache: "none",
-							IO:    "native",
-						},
-						Source: &libvirtxml.DomainDiskSource{
-							Volume: &libvirtxml.DomainDiskSourceVolume{
-								Pool:   vol.Pool,
-								Volume: vol.Name,
-							},
-						},
-						Target: &libvirtxml.DomainDiskTarget{
-							Dev: "vda",
-							Bus: "virtio",
-						},
-					},
-				}
-
-				// assemble additional disk volumes
-
-				var (
-					sataDiskCount = 1 // account for root disk
-					nvmeDiskCount = 0
-				)
-
-				for _, additionalDisk := range pctx.State.TypedSpec().Value.AdditionalDisks {
-					var dev, bus string
-
-					switch additionalDisk.Type {
-					case "nvme":
-						{
-							dev = fmt.Sprintf("nvme%dn1", nvmeDiskCount)
-							bus = "nvme"
-							nvmeDiskCount++
-						}
-					case "sata":
-						{
-							idx := sataDiskCount
-
-							s := ""
-							for idx >= 0 {
-								s = fmt.Sprint(rune('a'+(idx%26))) + s
-								idx = idx/26 - 1
-							}
-
-							dev = fmt.Sprintf("sd%s", s)
-							bus = "virtio"
-							sataDiskCount++
-						}
-					default:
-						{
-							return fmt.Errorf("unknown disk type: %q", additionalDisk.Type)
-						}
-					}
-
-					additionalDisk := libvirtxml.DomainDisk{
-						Device: "disk",
-						Driver: &libvirtxml.DomainDiskDriver{
-							Name:  "qemu",
-							Type:  "qcow2",
-							Cache: "none",
-							IO:    "native",
-						},
-						Source: &libvirtxml.DomainDiskSource{
-							Volume: &libvirtxml.DomainDiskSourceVolume{
-								Pool:   data.StoragePool,
-								Volume: additionalDisk.VolName,
-							},
-						},
-						Target: &libvirtxml.DomainDiskTarget{
-							Dev: dev,
-							Bus: bus,
-						},
-						Serial: uuid.NewString(),
-					}
-
-					disks = append(disks, additionalDisk)
-				}
-
-				// add cidata ISO as cdrom, if present
-				cidataVolName := pctx.State.TypedSpec().Value.CidataVolName
-				if cidataVolName != "" {
-					cidataDisk := libvirtxml.DomainDisk{
-						Device: "cdrom",
-						Driver: &libvirtxml.DomainDiskDriver{
-							Name: "qemu",
-							Type: "raw",
-						},
-						Source: &libvirtxml.DomainDiskSource{
-							Volume: &libvirtxml.DomainDiskSourceVolume{
-								Pool:   data.StoragePool,
-								Volume: cidataVolName,
-							},
-						},
-						Target: &libvirtxml.DomainDiskTarget{
-							Dev: "sda",
-							Bus: "sata",
-						},
-						ReadOnly: &libvirtxml.DomainDiskReadOnly{},
-					}
-
-					disks = append(disks, cidataDisk)
-				}
-
-				// assemble network interfaces
-
-				var networkInterfaces []libvirtxml.DomainInterface
-
-				for _, ifaceData := range data.NetworkInterfaces {
-					iface := libvirtxml.DomainInterface{
-						Model: &libvirtxml.DomainInterfaceModel{
-							Type: ifaceData.Driver,
-						},
-						Source: &libvirtxml.DomainInterfaceSource{
-							Network: &libvirtxml.DomainInterfaceSourceNetwork{
-								Network: ifaceData.NetworkName,
-							},
-						},
-					}
-
-					networkInterfaces = append(networkInterfaces, iface)
-				}
-
-				// generate libvirt XML spec
-				// https://libvirt.org/html/libvirt-libvirt-domain.html#virDomainCreateXML
-				domData := libvirtxml.Domain{
-					Type: "kvm",
-					Name: vmName,
-					// this one is really important, it has to match the UUID in omni
-					UUID: pctx.State.TypedSpec().Value.Uuid,
-					Memory: &libvirtxml.DomainMemory{
-						Unit:  "MiB",
-						Value: data.Memory,
-					},
-					VCPU: &libvirtxml.DomainVCPU{
-						Placement: "static",
-						Value:     data.Cores,
-					},
-					OS: &libvirtxml.DomainOS{
-						Type: &libvirtxml.DomainOSType{
-							Arch:    "x86_64",
-							Machine: "q35",
-							Type:    "hvm",
-						},
-						BootDevices: []libvirtxml.DomainBootDevice{
-							{Dev: "hd"},
-						},
-					},
-					CPU: &libvirtxml.DomainCPU{
-						Mode: "host-passthrough",
-					},
-					Features: &libvirtxml.DomainFeatureList{
-						ACPI: &libvirtxml.DomainFeature{},
-						APIC: &libvirtxml.DomainFeatureAPIC{},
-					},
-					Devices: &libvirtxml.DomainDeviceList{
-						Channels: []libvirtxml.DomainChannel{
-							{
-								Source: &libvirtxml.DomainChardevSource{
-									UNIX: &libvirtxml.DomainChardevSourceUNIX{
-										Mode: "bind",
-										Path: "/var/lib/libvirt/qemu/channel/target/omni-node-001.org.qemu.guest_agent.0",
-									},
-								},
-								Target: &libvirtxml.DomainChannelTarget{
-									VirtIO: &libvirtxml.DomainChannelTargetVirtIO{
-										Name: "org.qemu.guest_agent.0",
-									},
-								},
-							},
-						},
-						Emulator:   "", // let libvirt pick qemu-system-x86_64
-						Disks:      disks,
-						Interfaces: networkInterfaces,
-						MemBalloon: &libvirtxml.DomainMemBalloon{
-							Model: "virtio",
-						},
-						Serials: []libvirtxml.DomainSerial{
-							// { Target: &libvirtxml.DomainSerialTarget{Type: "pty",}},
-						},
-						Consoles: []libvirtxml.DomainConsole{
-							{
-								Target: &libvirtxml.DomainConsoleTarget{
-									Type: "serial",
-								},
-							},
-							// {Target: &libvirtxml.DomainConsoleTarget{Type: "virtio"}},
-						},
-						Videos: []libvirtxml.DomainVideo{
-							{
-								Model: libvirtxml.DomainVideoModel{
-									Type: "virtio",
-									Resolution: &libvirtxml.DomainVideoResolution{
-										X: 1920,
-										Y: 1080,
-									},
-								},
-							},
-						},
-						Graphics: []libvirtxml.DomainGraphic{
-							{
-								Spice: &libvirtxml.DomainGraphicSpice{
-									AutoPort: "yes",
-								},
-							},
-						},
-					},
-				}
-
-				domXML, err := domData.Marshal()
-				if err != nil {
-					return fmt.Errorf("error rendering domain XML: %w", err)
-				}
-
-				logger.Debug("domain XML", zap.String("xml_data", domXML))
-
-				// create domain
-				_, err = p.libvirtClient.DomainDefineXML(domXML)
-				if err != nil {
-					return fmt.Errorf("creating domain: %w", err)
-				}
-
-				// set VM id in omni
-				pctx.State.TypedSpec().Value.VmName = vmName
-
-				return nil
-			},
-		),
-
-		provision.NewStep(
-			"startVM",
-			func(ctx context.Context, logger *zap.Logger, pctx provision.Context[*resources.Machine]) error {
-				vmName := pctx.State.TypedSpec().Value.VmName
-
-				dom, err := p.libvirtClient.DomainLookupByName(vmName)
-				if err != nil {
-					return provision.NewRetryErrorf(time.Second*10, "VM lookup failed: %w", err)
-				}
-
-				domState, _, err := p.libvirtClient.DomainGetState(dom, 0)
-				if err != nil {
-					return provision.NewRetryErrorf(time.Second*10, "error fetching domain state: %w", err)
-				}
-
-				if libvirt.DomainState(domState) == libvirt.DomainRunning {
-					return nil
-				}
-
-				err = p.libvirtClient.DomainCreate(dom)
-				if err != nil {
-					if !strings.Contains(err.Error(), "domain is already running") {
-						return provision.NewRetryErrorf(time.Second*10, "failed to start VM: %w", err)
-					}
-				}
-
-				return nil
-			},
-		),
+		provision.NewStep("assignMachineUUID", p.assignMachineUUID),
+		provision.NewStep("createSchematic", p.createSchematic),
+		provision.NewStep("createHostnamePatch", p.createHostnamePatch),
+		provision.NewStep("instantiateVM", p.instantiateVM),
+		provision.NewStep("waitForVM", p.waitForVM),
 	}
+}
+
+func (p *Provisioner) assignMachineUUID(_ context.Context, _ *zap.Logger, pctx provision.Context[*resources.Machine]) error {
+	if existing := GetMachineUUID(pctx.State); existing != "" {
+		pctx.SetMachineUUID(existing)
+		return nil
+	}
+
+	uuidValue := uuid.NewString()
+	SetMachineUUID(pctx.State, uuidValue)
+	pctx.State.TypedSpec().Value.TalosVersion = pctx.GetTalosVersion()
+	pctx.State.TypedSpec().Value.VmName = CanonicalVMName(pctx.GetRequestID())
+	pctx.SetMachineUUID(uuidValue)
+	SetPhase(pctx.State, "machine_uuid_assigned")
+
+	return nil
+}
+
+func (p *Provisioner) createSchematic(ctx context.Context, logger *zap.Logger, pctx provision.Context[*resources.Machine]) error {
+	if pctx.State.TypedSpec().Value.SchematicId != "" {
+		return nil
+	}
+
+	schematicID, err := pctx.GenerateSchematicID(ctx, logger, provision.WithoutConnectionParams())
+	if err != nil {
+		return provision.NewRetryErrorf(10*time.Second, "generate schematic: %w", err)
+	}
+
+	pctx.State.TypedSpec().Value.SchematicId = schematicID
+	SetPhase(pctx.State, "schematic_ready")
+
+	return nil
+}
+
+func (p *Provisioner) createHostnamePatch(ctx context.Context, _ *zap.Logger, pctx provision.Context[*resources.Machine]) error {
+	hostname := pctx.State.TypedSpec().Value.VmName
+	patchName := hostname + "-opennebula-hostname"
+
+	if err := pctx.CreateConfigPatch(ctx, patchName, HostnameConfigPatch(hostname)); err != nil {
+		return provision.NewRetryErrorf(10*time.Second, "create hostname patch: %w", err)
+	}
+
+	SetPhase(pctx.State, "hostname_patch_ready")
+
+	return nil
+}
+
+func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pctx provision.Context[*resources.Machine]) error {
+	if GetVMID(pctx.State) != 0 {
+		return nil
+	}
+
+	data, resolvedResources, err := p.resolveRequest(ctx, pctx)
+	if err != nil {
+		SetLastError(pctx.State, err.Error())
+		return err
+	}
+
+	schematicID := pctx.State.TypedSpec().Value.SchematicId
+	imageName, err := p.renderImageName(pctx.GetTalosVersion(), schematicID)
+	if err != nil {
+		return err
+	}
+
+	imageRef, err := p.client.LookupImageByName(ctx, imageName)
+	if err != nil {
+		return provision.NewRetryErrorf(10*time.Second, "lookup image: %w", err)
+	}
+
+	templateRef, err := p.client.LookupTemplateByName(ctx, data.TemplateName)
+	if err != nil {
+		return provision.NewRetryErrorf(10*time.Second, "lookup template: %w", err)
+	}
+
+	networks, err := p.client.LookupNetworksByName(ctx, networkNames(data.Networks))
+	if err != nil {
+		return provision.NewRetryErrorf(10*time.Second, "lookup networks: %w", err)
+	}
+
+	if data.Datastore != "" {
+		if _, err = p.client.LookupDatastoreByName(ctx, data.Datastore); err != nil {
+			return provision.NewRetryErrorf(10*time.Second, "lookup datastore: %w", err)
+		}
+	}
+
+	hostname := pctx.State.TypedSpec().Value.VmName
+	bootstrap := BootstrapPayload(pctx.ConnectionParams, hostname)
+	contextKV := map[string]string{
+		"USER_DATA":          bootstrap,
+		"USER_DATA_ENCODING": "base64",
+	}
+	if data.NetworkContextMode == "manual" {
+		contextKV["NETWORK"] = "NO"
+		for index, nic := range data.StaticNetwork {
+			prefix := fmt.Sprintf("ETH%d", index)
+			if nic.IP != "" {
+				contextKV[prefix+"_IP"] = nic.IP
+			}
+			if nic.Gateway != "" {
+				contextKV[prefix+"_GATEWAY"] = nic.Gateway
+			}
+			if len(nic.DNS) > 0 {
+				contextKV[prefix+"_DNS"] = strings.Join(nic.DNS, " ")
+			}
+			if nic.MAC != "" {
+				contextKV[prefix+"_MAC"] = nic.MAC
+			}
+			if nic.Name != "" {
+				contextKV[prefix+"_NAME"] = nic.Name
+			}
+		}
+	} else {
+		contextKV["NETWORK"] = "YES"
+	}
+	rendered := RenderTemplate(RenderInput{
+		VMName:          hostname,
+		ImageName:       imageRef.Name,
+		Datastore:       data.Datastore,
+		Resources:       resolvedResources,
+		Networks:        networks,
+		FirmwareMode:    data.Firmware.Mode,
+		SecureBoot:      effectiveSecureBoot(&data),
+		GraphicsEnabled: effectiveGraphicsEnabled(&data),
+		ContextKV:       contextKV,
+	})
+
+	logger.Debug("opennebula extra template rendered", zap.String("template", RedactTemplateForLog(rendered)))
+
+	vmRef, err := p.client.InstantiateTemplate(ctx, opennebula.InstantiateRequest{
+		TemplateID:    templateRef.ID,
+		VMName:        hostname,
+		ExtraTemplate: rendered,
+		Pending:       false,
+		CloneTemplate: false,
+	})
+	if err != nil {
+		return provision.NewRetryErrorf(10*time.Second, "instantiate vm: %w", err)
+	}
+
+	SetVMID(pctx.State, vmRef.ID)
+	SetTemplateName(pctx.State, templateRef.Name)
+	SetTemplateID(pctx.State, templateRef.ID)
+	SetImageName(pctx.State, imageRef.Name)
+	SetDatastore(pctx.State, data.Datastore)
+	SetFlavor(pctx.State, data.Flavor)
+	SetNetworkNames(pctx.State, networkNames(data.Networks))
+	SetPhase(pctx.State, "vm_instantiated")
+	SetLastError(pctx.State, "")
+	pctx.SetMachineInfraID(fmt.Sprintf("%d", vmRef.ID))
+
+	return nil
+}
+
+func (p *Provisioner) waitForVM(ctx context.Context, _ *zap.Logger, pctx provision.Context[*resources.Machine]) error {
+	vmID := GetVMID(pctx.State)
+	if vmID == 0 {
+		return provision.NewRetryErrorf(10*time.Second, "vm id is not set yet")
+	}
+
+	vmInfo, err := p.client.GetVM(ctx, vmID)
+	if err != nil {
+		return provision.NewRetryErrorf(10*time.Second, "get vm: %w", err)
+	}
+
+	if strings.EqualFold(vmInfo.LCMState, "RUNNING") || strings.EqualFold(vmInfo.State, "ACTIVE") {
+		SetPhase(pctx.State, "vm_running")
+		return nil
+	}
+
+	return provision.NewRetryErrorf(10*time.Second, "vm %d not running yet (state=%s lcm=%s)", vmID, vmInfo.State, vmInfo.LCMState)
+}
+
+func (p *Provisioner) resolveRequest(ctx context.Context, pctx provision.Context[*resources.Machine]) (ProviderData, ResolvedResources, error) {
+	var data ProviderData
+
+	if err := pctx.UnmarshalProviderData(&data); err != nil {
+		return ProviderData{}, ResolvedResources{}, fmt.Errorf("unmarshal providerData: %w", err)
+	}
+
+	if err := ValidateProviderData(&data, p.config); err != nil {
+		return ProviderData{}, ResolvedResources{}, err
+	}
+
+	resolved, err := ResolveResources(data, p.config)
+	if err != nil {
+		return ProviderData{}, ResolvedResources{}, fmt.Errorf("resolve resources: %w", err)
+	}
+
+	if data.Datastore != "" {
+		if _, err = p.client.LookupDatastoreByName(ctx, data.Datastore); err != nil {
+			return ProviderData{}, ResolvedResources{}, err
+		}
+	}
+
+	return data, resolved, nil
+}
+
+func (p *Provisioner) renderImageName(talosVersion, schematicID string) (string, error) {
+	tpl, err := template.New("image-name").Parse(p.config.OpenNebula.ImageNamePattern)
+	if err != nil {
+		return "", fmt.Errorf("parse imageNamePattern: %w", err)
+	}
+
+	var builder strings.Builder
+	if err := tpl.Execute(&builder, map[string]string{
+		"Arch":         "amd64",
+		"TalosVersion": talosVersion,
+		"SchematicID":  schematicID,
+	}); err != nil {
+		return "", fmt.Errorf("render imageNamePattern: %w", err)
+	}
+
+	return builder.String(), nil
+}
+
+func networkNames(networks []NetworkRef) []string {
+	result := make([]string, 0, len(networks))
+	for _, network := range networks {
+		result = append(result, network.Name)
+	}
+
+	return result
 }

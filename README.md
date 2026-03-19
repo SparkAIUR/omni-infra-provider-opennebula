@@ -21,7 +21,7 @@
 
 ## Development status
 
-This repository is being converted from the upstream libvirt-based Omni provider to an OpenNebula-native implementation. The internal spec pack under `refs/docs/` defines the target architecture, integration strategy, testing expectations, and deployment handoff.
+The repository is under active v1 delivery. The internal spec pack under `refs/docs/` defines the target architecture, integration strategy, testing expectations, and deployment handoff.
 
 ## Internal tooling
 

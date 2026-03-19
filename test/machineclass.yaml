@@ -1,57 +1,69 @@
 metadata:
   namespace: default
   type: MachineClasses.omni.sidero.dev
-  id: libvirt-small
+  id: opennebula-small
 spec:
   autoprovision:
-    providerid: libvirt
+    providerid: opennebula
     providerdata: |
-      cores: 2
-      memory: 4096 # in MB
-      disk_size: 20 # in GB
-      storage_pool: "default"
-      network_interfaces:
-        - driver: "virtio"
-          network_name: "default"
+      schemaVersion: v1alpha1
+      flavor: small
+      templateName: talos-omni-base
+      datastore: ssd-primary
+      networks:
+        - name: talos-prod
+      networkContextMode: auto
+      graphics:
+        enabled: false
 ---
 metadata:
   namespace: default
   type: MachineClasses.omni.sidero.dev
-  id: libvirt-medium
+  id: opennebula-medium
 spec:
   autoprovision:
-    providerid: libvirt
+    providerid: opennebula
     providerdata: |
-      cores: 4
-      memory: 8192 # in MB
-      disk_size: 20 # in GB
-      storage_pool: "default"
-      network_interfaces:
-        - driver: virtio
-          network_name: "default"
-        - driver: virtio
-          network_name: "talos-isolated"
-      additional_disks:
-        - type: "nvme"
-          size: 100 # in GB
+      schemaVersion: v1alpha1
+      flavor: medium
+      templateName: talos-omni-base
+      datastore: ssd-primary
+      networks:
+        - name: talos-prod
+        - name: talos-mgmt
+      networkContextMode: auto
+      rootDiskGiB: 80
+      graphics:
+        enabled: false
 ---
 metadata:
   namespace: default
   type: MachineClasses.omni.sidero.dev
-  id: libvirt-large
+  id: opennebula-large
 spec:
   autoprovision:
-    providerid: libvirt
+    providerid: opennebula
     providerdata: |
-      cores: 8
-      memory: 32000 # in MB
-      disk_size: 20 # in GB
-      storage_pool: "vmstorage"
-      network_interfaces:
-        - driver: virtio
-          network_name: "default"
-        - driver: virtio
-          network_name: "talos-isolated"
-      additional_disks:
-        - type: "nvme"
-          size: 500 # in GB
+      schemaVersion: v1alpha1
+      resources:
+        cpu: "8"
+        vcpu: 8
+        memoryMiB: 32768
+        rootDiskGiB: 160
+      templateName: talos-omni-base
+      datastore: ceph-images
+      networks:
+        - name: talos-prod
+      networkContextMode: manual
+      staticNetwork:
+        - name: eth0
+          ip: 10.20.30.40
+          gateway: 10.20.30.1
+          dns:
+            - 10.20.30.53
+            - 1.1.1.1
+      firmware:
+        mode: uefi
+        secureBoot: true
+      graphics:
+        enabled: false

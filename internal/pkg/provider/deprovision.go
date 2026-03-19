@@ -6,170 +6,61 @@ package provider
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"strings"
 	"time"
 
-	"github.com/digitalocean/go-libvirt"
 	"github.com/siderolabs/omni/client/pkg/infra/provision"
-	"github.com/siderolabs/omni/client/pkg/omni/resources/infra"
+	infrares "github.com/siderolabs/omni/client/pkg/omni/resources/infra"
 	"go.uber.org/zap"
 
-	"github.com/siderolabs/omni-infra-provider-libvirt/internal/pkg/provider/resources"
+	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/opennebula"
+	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/provider/resources"
 )
 
 // Deprovision implements infra.Provisioner.
-func (p *Provisioner) Deprovision(ctx context.Context, logger *zap.Logger, machine *resources.Machine, machineRequest *infra.MachineRequest) error {
-	vmName := machineRequest.Metadata().ID()
-
-	if vmName == "" {
-		return provision.NewRetryError(errors.New("empty vmName"), time.Second*10)
-	}
-
-	if err := removeDomain(p.libvirtClient, vmName, logger); err != nil {
-		return err
-	}
-
-	poolName := machine.TypedSpec().Value.PoolName
-	volName := machine.TypedSpec().Value.VmVolName
-
-	if poolName == "" {
-		logger.Warn("pool name is empty, skip disk removal")
-
+func (p *Provisioner) Deprovision(ctx context.Context, logger *zap.Logger, machine *resources.Machine, _ *infrares.MachineRequest) error {
+	vmID := GetVMID(machine)
+	if vmID == 0 {
+		logger.Info("vm id is not set, nothing to delete")
 		return nil
 	}
 
-	if volName == "" {
-		logger.Warn("vol name is empty, skip main disk removal")
-	} else {
-		if err := removeVolMain(p.libvirtClient, volName, poolName, logger); err != nil {
-			return err
+	if err := p.client.TerminateVM(ctx, vmID, p.config.Features.HardDelete); err != nil {
+		if isNotFoundError(err) {
+			logger.Info("vm already deleted", zap.Int("vm_id", vmID))
+			clearProvisionedState(machine)
+			SetPhase(machine, "deleted")
+			return nil
 		}
+
+		return provision.NewRetryErrorf(10*time.Second, "terminate vm %d: %w", vmID, err)
 	}
 
-	if err := removeVolAdditionalDisks(p.libvirtClient, machine, poolName, logger); err != nil {
-		return fmt.Errorf("remove additional volumes: %w", err)
-	}
-
-	if err := removeVolCidata(p.libvirtClient, machine, poolName, logger); err != nil {
-		return fmt.Errorf("remove cidata volume: %w", err)
-	}
+	clearProvisionedState(machine)
+	SetPhase(machine, "deleted")
+	logger.Info("terminated opennebula vm", zap.Int("vm_id", vmID))
 
 	return nil
 }
 
-func removeDomain(lc *libvirt.Libvirt, vmName string, logger *zap.Logger) error {
-	dom, err := lc.DomainLookupByName(vmName)
-	if err != nil {
-		if strings.Contains(err.Error(), "Domain not found") {
-			logger.Info("domain was alredy removed: " + vmName)
-		} else {
-			return fmt.Errorf("fetching domain: %w", err)
-		}
-	} else {
-		logger.Info("found domain " + vmName)
-
-		state, _, err := lc.DomainGetState(dom, 0) //nolint:govet
-		if err != nil {
-			return fmt.Errorf("fetching domain state: %w", err)
-		}
-
-		switch state {
-		case int32(libvirt.DomainRunning):
-			{
-				// in libvirt, "destroy" translates to "shut down" or "power off"
-				err = lc.DomainDestroy(dom)
-				if err != nil {
-					return fmt.Errorf("destroy domain: %w", err)
-				}
-
-				logger.Info("destroyed domain " + vmName)
-
-				return provision.NewRetryInterval(time.Second * 3)
-			}
-		case int32(libvirt.DomainShutdown):
-			return provision.NewRetryInterval(time.Second * 10)
-		case int32(libvirt.DomainShutoff):
-			{
-				// in libvirt, "undefine" translates to "delete a VM"
-				err = lc.DomainUndefine(dom)
-				if err != nil {
-					return fmt.Errorf("undefine VM: %w", err)
-				}
-
-				logger.Info("undefined domain " + vmName)
-			}
-		default:
-			return provision.NewRetryErrorf(time.Second*10, "unknown VM state: %v", state)
-		}
-	}
-
-	return nil
+func clearProvisionedState(machine *resources.Machine) {
+	SetLastError(machine, "")
+	SetVMID(machine, 0)
+	SetTemplateName(machine, "")
+	SetTemplateID(machine, 0)
+	SetImageName(machine, "")
+	SetDatastore(machine, "")
+	SetFlavor(machine, "")
+	SetNetworkNames(machine, nil)
+	machine.TypedSpec().Value.SchematicId = ""
+	machine.TypedSpec().Value.TalosVersion = ""
+	machine.TypedSpec().Value.VmName = ""
 }
 
-func removeVolMain(lc *libvirt.Libvirt, volName, poolName string, logger *zap.Logger) error {
-	vol, err := getVol(lc, poolName, volName)
-	if err != nil {
-		if !errors.Is(err, errVolNoExist) {
-			return fmt.Errorf("fetching volume: %w", err)
-		}
-
-		logger.Info("volume was removed already: " + volName)
-	} else {
-		err = lc.StorageVolDelete(vol, 0)
-		if err != nil {
-			return fmt.Errorf("deleting volume: %w", err)
-		}
-
-		logger.Info("removed volume: " + volName)
+func isNotFoundError(err error) bool {
+	if err == nil {
+		return false
 	}
 
-	return nil
-}
-
-func removeVolAdditionalDisks(lc *libvirt.Libvirt, machine *resources.Machine, poolName string, logger *zap.Logger) error {
-	for _, additionalDisk := range machine.TypedSpec().Value.AdditionalDisks {
-		additionalVolume, err := getVol(lc, poolName, additionalDisk.VolName)
-		if err != nil {
-			if !errors.Is(err, errVolNoExist) {
-				return fmt.Errorf("fetching volume %s: %w", additionalDisk.VolName, err)
-			}
-
-			logger.Info("volume was removed already: " + additionalDisk.VolName)
-
-			continue
-		}
-
-		err = lc.StorageVolDelete(additionalVolume, 0)
-		if err != nil {
-			return fmt.Errorf("deleting volume: %w", err)
-		}
-
-		logger.Info("removed volume: " + additionalDisk.VolName)
-	}
-
-	return nil
-}
-
-func removeVolCidata(lc *libvirt.Libvirt, machine *resources.Machine, poolName string, logger *zap.Logger) error {
-	if cidataVolName := machine.TypedSpec().Value.CidataVolName; cidataVolName != "" {
-		cidataVol, err := getVol(lc, poolName, cidataVolName)
-		if err != nil {
-			if !errors.Is(err, errVolNoExist) {
-				return fmt.Errorf("fetching cidata volume %s: %w", cidataVolName, err)
-			}
-
-			logger.Info("cidata volume was removed already: " + cidataVolName)
-		} else {
-			err = lc.StorageVolDelete(cidataVol, 0)
-			if err != nil {
-				return fmt.Errorf("delete cidata volume: %w", err)
-			}
-
-			logger.Info("removed cidata volume: " + cidataVolName)
-		}
-	}
-
-	return nil
+	return err == opennebula.ErrNotFound || strings.Contains(strings.ToLower(err.Error()), "not found")
 }

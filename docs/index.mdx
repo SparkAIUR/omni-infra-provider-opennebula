@@ -1,0 +1,37 @@
+---
+title: omni-infra-provider-opennebula
+description: OpenNebula infrastructure provider for Omni-managed Talos nodes.
+---
+
+# Omni infrastructure provider for OpenNebula
+
+`omni-infra-provider-opennebula` is an Omni infrastructure provider that provisions Talos nodes as OpenNebula virtual machines. It replaces the libvirt-specific path with an OpenNebula-native flow built around template instantiation, OpenNebula `CONTEXT`, and minimal base64 `USER_DATA`.
+
+## What the provider does
+
+- Registers with Omni as provider ID `opennebula`.
+- Validates machine-class `providerData` against the OpenNebula v1alpha1 contract.
+- Resolves template, image, datastore, and network inputs before instantiation.
+- Generates a Talos schematic ID and a managed hostname patch for Omni.
+- Instantiates an OpenNebula VM and persists enough state for restart-safe deprovisioning.
+- Deprovisions OpenNebula VMs idempotently.
+
+## Public entry points
+
+- Start with [/getting-started](/getting-started) for local setup.
+- Use [/deployment](/deployment) for the provider runtime config and Kubernetes deployment flow.
+- Use [/api/provider-data](/api/provider-data) when defining machine classes.
+- Use [/runbooks/smoke-test](/runbooks/smoke-test) for end-to-end validation.
+
+## Repository map
+
+- `cmd/omni-infra-provider-opennebula/`: provider process entrypoint and embedded schema.
+- `internal/pkg/config/`: typed runtime config, defaults, and auth resolution.
+- `internal/pkg/provider/`: request validation, naming, bootstrap rendering, and reconcile/deprovision orchestration.
+- `internal/pkg/opennebula/`: GOCA-backed adapter and fake client.
+- `test/`: deployment and machine-class examples.
+- `tools/ctx/`: private SQLite-backed context CLI managed with `uv`.
+
+## Current scope
+
+This v1 provider targets the core OpenNebula VM lifecycle only. Automatic image import, GPU lifecycle management, advanced placement, SDN workflows, and extra data-volume orchestration are intentionally deferred.

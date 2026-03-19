@@ -1,0 +1,39 @@
+---
+title: Provider core
+description: Validation, naming, bootstrap rendering, and orchestration responsibilities.
+---
+
+# Provider core
+
+The provider core owns the Omni-facing orchestration logic.
+
+## Purpose
+
+`internal/pkg/provider/` translates Omni requests into validated, deterministic OpenNebula operations.
+
+## Key files
+
+- `internal/pkg/provider/data.go`
+- `internal/pkg/provider/validation.go`
+- `internal/pkg/provider/naming.go`
+- `internal/pkg/provider/hostname.go`
+- `internal/pkg/provider/bootstrap.go`
+- `internal/pkg/provider/render.go`
+- `internal/pkg/provider/provision.go`
+- `internal/pkg/provider/deprovision.go`
+- `internal/pkg/provider/state.go`
+
+## Contracts
+
+- Canonical VM names and Talos hostnames are derived from the Omni request ID.
+- The provider generates a managed hostname patch through Omni before VM instantiation.
+- `USER_DATA` is base64-encoded Talos join config plus hostname config.
+- Logs redact `USER_DATA`.
+
+## Change notes
+
+This module is where public schema changes, retry behavior, and state schema changes usually land together. If you modify the request contract here, also update:
+
+- [/api/provider-data](/api/provider-data)
+- [/examples/machineclass](/examples/machineclass)
+- `cmd/omni-infra-provider-opennebula/data/schema.json`

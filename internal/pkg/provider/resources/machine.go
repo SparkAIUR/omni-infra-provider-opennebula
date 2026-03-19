@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Package resources contains resources stored in the libvirt infra provider state.
+// Package resources contains resources stored in the OpenNebula infra provider state.
 package resources
 
 import (
@@ -12,8 +12,8 @@ import (
 	"github.com/cosi-project/runtime/pkg/resource/typed"
 	"github.com/siderolabs/omni/client/pkg/infra"
 
-	"github.com/siderolabs/omni-infra-provider-libvirt/api/specs"
-	providermeta "github.com/siderolabs/omni-infra-provider-libvirt/internal/pkg/provider/meta"
+	"github.com/SparkAIUR/omni-infra-provider-opennebula/api/specs"
+	providermeta "github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/provider/meta"
 )
 
 // NewMachine creates new Machine.
@@ -24,7 +24,7 @@ func NewMachine(ns, id string) *Machine {
 	)
 }
 
-// Machine describes libvirt machine configuration.
+// Machine describes provider-owned OpenNebula machine state.
 type Machine = typed.Resource[MachineSpec, MachineExtension]
 
 // MachineSpec wraps specs.MachineSpec.

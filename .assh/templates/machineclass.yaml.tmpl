@@ -1,0 +1,17 @@
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: __MACHINECLASS_ID__
+spec:
+  autoprovision:
+    providerid: opennebula
+    providerdata: |
+      schemaVersion: v1alpha1
+      flavor: __FLAVOR__
+      templateName: __TEMPLATE_NAME__
+      datastore: __DATASTORE__
+      networks:
+        - name: __NETWORK_NAME__
+      networkContextMode: auto
+      graphics:
+        enabled: false

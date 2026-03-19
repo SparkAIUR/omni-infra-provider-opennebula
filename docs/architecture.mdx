@@ -1,0 +1,55 @@
+---
+title: Architecture
+description: Provider runtime flow and package boundaries for the OpenNebula integration.
+---
+
+# Architecture
+
+The provider is a small Go service that Omni calls through the infrastructure-provider interface. The main architectural split is between provider orchestration and the OpenNebula transport adapter.
+
+## High-level flow
+
+1. Omni sends a machine request with `providerData`.
+2. The provider validates the request and resolves a VM shape.
+3. The provider generates a Talos schematic ID and a hostname patch.
+4. The provider resolves the target OpenNebula template, image, datastore, and networks.
+5. The provider renders an extra template with `CPU`, `VCPU`, `MEMORY`, `DISK`, `NIC`, `OS`, `GRAPHICS`, and `CONTEXT`.
+6. The provider instantiates the VM through OpenNebula.
+7. Provider-owned state is persisted so retries and deprovisioning remain idempotent.
+8. Deprovision requests terminate the VM through the same adapter.
+
+## Package boundaries
+
+## `internal/pkg/config`
+
+Owns typed runtime config, validation, defaulting, and auth resolution from environment variables.
+
+## `internal/pkg/provider`
+
+Owns public request validation, resource resolution, VM naming, hostname patch generation, Talos bootstrap assembly, template rendering, state persistence, and deprovision logic.
+
+## `internal/pkg/opennebula`
+
+Owns OpenNebula API access through the official GOCA client. The rest of the provider only depends on the adapter interface and normalized model types.
+
+## State model
+
+The provider stores OpenNebula-specific machine state in the provider-owned resource, including:
+
+- VM ID and VM name
+- template ID and template name
+- image name
+- datastore and network names
+- schematic ID
+- Talos version
+- flavor
+- phase and last error
+
+See [/api/state-schema](/api/state-schema) for the exact schema.
+
+## Secret handling
+
+- The config file stores the OpenNebula endpoint and defaults, not secrets.
+- Credentials come from environment variables.
+- Rendered template logs redact `USER_DATA`.
+- The repo’s private context store and private notes stay out of `docs/`.

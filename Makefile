@@ -15,8 +15,8 @@ OPERATING_SYSTEM := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 GOARCH := $(shell uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
 WITH_DEBUG ?= false
 WITH_RACE ?= false
-REGISTRY ?= ghcr.io
-USERNAME ?= siderolabs
+REGISTRY ?= docker.io
+USERNAME ?= nudevco
 REGISTRY_AND_USERNAME ?= $(REGISTRY)/$(USERNAME)
 PROTOBUF_GO_VERSION ?= 1.36.11
 GRPC_GO_VERSION ?= 1.6.1
@@ -80,7 +80,7 @@ TOOLCHAIN ?= docker.io/golang:1.26-alpine
 
 # help menu
 
-export define HELP_MENU_HEADER
+define HELP_MENU_HEADER
 # Getting Started
 
 To build this project, you must have the following installed:
@@ -144,7 +144,7 @@ else
 GO_LDFLAGS += -s
 endif
 
-all: unit-tests omni-infra-provider-libvirt image-omni-infra-provider-libvirt lint
+all: unit-tests omni-infra-provider-opennebula image-omni-infra-provider-opennebula lint
 
 $(ARTIFACTS):  ## Creates artifacts directory.
 	@mkdir -p $(ARTIFACTS)
@@ -210,36 +210,36 @@ unit-tests:  ## Performs unit tests
 unit-tests-race:  ## Performs unit tests with race detection enabled.
 	@$(MAKE) target-$@
 
-.PHONY: $(ARTIFACTS)/omni-infra-provider-libvirt-darwin-amd64
-$(ARTIFACTS)/omni-infra-provider-libvirt-darwin-amd64:
-	@$(MAKE) local-omni-infra-provider-libvirt-darwin-amd64 DEST=$(ARTIFACTS)
+.PHONY: $(ARTIFACTS)/omni-infra-provider-opennebula-darwin-amd64
+$(ARTIFACTS)/omni-infra-provider-opennebula-darwin-amd64:
+	@$(MAKE) local-omni-infra-provider-opennebula-darwin-amd64 DEST=$(ARTIFACTS)
 
-.PHONY: omni-infra-provider-libvirt-darwin-amd64
-omni-infra-provider-libvirt-darwin-amd64: $(ARTIFACTS)/omni-infra-provider-libvirt-darwin-amd64  ## Builds executable for omni-infra-provider-libvirt-darwin-amd64.
+.PHONY: omni-infra-provider-opennebula-darwin-amd64
+omni-infra-provider-opennebula-darwin-amd64: $(ARTIFACTS)/omni-infra-provider-opennebula-darwin-amd64  ## Builds executable for omni-infra-provider-opennebula-darwin-amd64.
 
-.PHONY: $(ARTIFACTS)/omni-infra-provider-libvirt-darwin-arm64
-$(ARTIFACTS)/omni-infra-provider-libvirt-darwin-arm64:
-	@$(MAKE) local-omni-infra-provider-libvirt-darwin-arm64 DEST=$(ARTIFACTS)
+.PHONY: $(ARTIFACTS)/omni-infra-provider-opennebula-darwin-arm64
+$(ARTIFACTS)/omni-infra-provider-opennebula-darwin-arm64:
+	@$(MAKE) local-omni-infra-provider-opennebula-darwin-arm64 DEST=$(ARTIFACTS)
 
-.PHONY: omni-infra-provider-libvirt-darwin-arm64
-omni-infra-provider-libvirt-darwin-arm64: $(ARTIFACTS)/omni-infra-provider-libvirt-darwin-arm64  ## Builds executable for omni-infra-provider-libvirt-darwin-arm64.
+.PHONY: omni-infra-provider-opennebula-darwin-arm64
+omni-infra-provider-opennebula-darwin-arm64: $(ARTIFACTS)/omni-infra-provider-opennebula-darwin-arm64  ## Builds executable for omni-infra-provider-opennebula-darwin-arm64.
 
-.PHONY: $(ARTIFACTS)/omni-infra-provider-libvirt-linux-amd64
-$(ARTIFACTS)/omni-infra-provider-libvirt-linux-amd64:
-	@$(MAKE) local-omni-infra-provider-libvirt-linux-amd64 DEST=$(ARTIFACTS)
+.PHONY: $(ARTIFACTS)/omni-infra-provider-opennebula-linux-amd64
+$(ARTIFACTS)/omni-infra-provider-opennebula-linux-amd64:
+	@$(MAKE) local-omni-infra-provider-opennebula-linux-amd64 DEST=$(ARTIFACTS)
 
-.PHONY: omni-infra-provider-libvirt-linux-amd64
-omni-infra-provider-libvirt-linux-amd64: $(ARTIFACTS)/omni-infra-provider-libvirt-linux-amd64  ## Builds executable for omni-infra-provider-libvirt-linux-amd64.
+.PHONY: omni-infra-provider-opennebula-linux-amd64
+omni-infra-provider-opennebula-linux-amd64: $(ARTIFACTS)/omni-infra-provider-opennebula-linux-amd64  ## Builds executable for omni-infra-provider-opennebula-linux-amd64.
 
-.PHONY: $(ARTIFACTS)/omni-infra-provider-libvirt-linux-arm64
-$(ARTIFACTS)/omni-infra-provider-libvirt-linux-arm64:
-	@$(MAKE) local-omni-infra-provider-libvirt-linux-arm64 DEST=$(ARTIFACTS)
+.PHONY: $(ARTIFACTS)/omni-infra-provider-opennebula-linux-arm64
+$(ARTIFACTS)/omni-infra-provider-opennebula-linux-arm64:
+	@$(MAKE) local-omni-infra-provider-opennebula-linux-arm64 DEST=$(ARTIFACTS)
 
-.PHONY: omni-infra-provider-libvirt-linux-arm64
-omni-infra-provider-libvirt-linux-arm64: $(ARTIFACTS)/omni-infra-provider-libvirt-linux-arm64  ## Builds executable for omni-infra-provider-libvirt-linux-arm64.
+.PHONY: omni-infra-provider-opennebula-linux-arm64
+omni-infra-provider-opennebula-linux-arm64: $(ARTIFACTS)/omni-infra-provider-opennebula-linux-arm64  ## Builds executable for omni-infra-provider-opennebula-linux-arm64.
 
-.PHONY: omni-infra-provider-libvirt
-omni-infra-provider-libvirt: omni-infra-provider-libvirt-darwin-amd64 omni-infra-provider-libvirt-darwin-arm64 omni-infra-provider-libvirt-linux-amd64 omni-infra-provider-libvirt-linux-arm64  ## Builds executables for omni-infra-provider-libvirt.
+.PHONY: omni-infra-provider-opennebula
+omni-infra-provider-opennebula: omni-infra-provider-opennebula-darwin-amd64 omni-infra-provider-opennebula-darwin-arm64 omni-infra-provider-opennebula-linux-amd64 omni-infra-provider-opennebula-linux-arm64  ## Builds executables for omni-infra-provider-opennebula.
 
 .PHONY: lint-markdown
 lint-markdown:  ## Runs markdownlint.
@@ -251,9 +251,9 @@ lint: lint-golangci-lint lint-gofumpt lint-govulncheck lint-markdown  ## Run all
 .PHONY: lint-fmt
 lint-fmt: lint-golangci-lint-fmt  ## Run all linter formatters and fix up the source tree.
 
-.PHONY: image-omni-infra-provider-libvirt
-image-omni-infra-provider-libvirt:  ## Builds image for omni-infra-provider-libvirt.
-	@$(MAKE) registry-$@ IMAGE_NAME="omni-infra-provider-libvirt"
+.PHONY: image-omni-infra-provider-opennebula
+image-omni-infra-provider-opennebula:  ## Builds image for omni-infra-provider-opennebula.
+	@$(MAKE) registry-$@ IMAGE_NAME="omni-infra-provider-opennebula"
 
 .PHONY: rekres
 rekres:
@@ -273,4 +273,3 @@ release-notes: $(ARTIFACTS)
 conformance:
 	@docker pull $(CONFORMANCE_IMAGE)
 	@docker run --rm -it -v $(PWD):/src -w /src $(CONFORMANCE_IMAGE) enforce
-

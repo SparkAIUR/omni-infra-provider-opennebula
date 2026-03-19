@@ -3,7 +3,7 @@ features:
 kind: Cluster
 kubernetes:
   version: v1.34.5
-name: libvirt-provider-test
+name: opennebula-provider-test
 patches:
 - inline:
     debug: true
@@ -13,7 +13,7 @@ talos:
 ---
 kind: ControlPlane
 machineClass:
-  name: libvirt-small
+  name: opennebula-small
   size: 3
 patches:
 - inline:
@@ -24,5 +24,5 @@ patches:
 kind: Workers
 name: worker
 machineClass:
-  name: libvirt-small
+  name: opennebula-small
   size: 3

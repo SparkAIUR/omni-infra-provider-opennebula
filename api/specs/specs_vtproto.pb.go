@@ -6,11 +6,10 @@ package specs
 
 import (
 	fmt "fmt"
-	io "io"
-
 	protohelpers "github.com/planetscale/vtprotobuf/protohelpers"
 	proto "google.golang.org/protobuf/proto"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	io "io"
 )
 
 const (
@@ -20,67 +19,26 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-func (m *AdditionalDisk) CloneVT() *AdditionalDisk {
-	if m == nil {
-		return (*AdditionalDisk)(nil)
-	}
-	r := new(AdditionalDisk)
-	r.Type = m.Type
-	r.VolName = m.VolName
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *AdditionalDisk) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
-
-func (m *NetworkInterfaces) CloneVT() *NetworkInterfaces {
-	if m == nil {
-		return (*NetworkInterfaces)(nil)
-	}
-	r := new(NetworkInterfaces)
-	r.Driver = m.Driver
-	r.Network = m.Network
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *NetworkInterfaces) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
-
 func (m *MachineSpec) CloneVT() *MachineSpec {
 	if m == nil {
 		return (*MachineSpec)(nil)
 	}
 	r := new(MachineSpec)
-	r.Uuid = m.Uuid
+	r.VmId = m.VmId
+	r.VmName = m.VmName
+	r.TemplateName = m.TemplateName
+	r.TemplateId = m.TemplateId
+	r.ImageName = m.ImageName
+	r.Datastore = m.Datastore
 	r.SchematicId = m.SchematicId
 	r.TalosVersion = m.TalosVersion
-	r.VmVolName = m.VmVolName
-	r.CidataVolName = m.CidataVolName
-	r.PoolName = m.PoolName
-	r.VmName = m.VmName
-	if rhs := m.AdditionalDisks; rhs != nil {
-		tmpContainer := make([]*AdditionalDisk, len(rhs))
-		for k, v := range rhs {
-			tmpContainer[k] = v.CloneVT()
-		}
-		r.AdditionalDisks = tmpContainer
-	}
-	if rhs := m.NetworkInterfaces; rhs != nil {
-		tmpContainer := make([]*NetworkInterfaces, len(rhs))
-		for k, v := range rhs {
-			tmpContainer[k] = v.CloneVT()
-		}
-		r.NetworkInterfaces = tmpContainer
+	r.Flavor = m.Flavor
+	r.Phase = m.Phase
+	r.LastError = m.LastError
+	if rhs := m.NetworkNames; rhs != nil {
+		tmpContainer := make([]string, len(rhs))
+		copy(tmpContainer, rhs)
+		r.NetworkNames = tmpContainer
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -93,58 +51,38 @@ func (m *MachineSpec) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
-func (this *AdditionalDisk) EqualVT(that *AdditionalDisk) bool {
-	if this == that {
-		return true
-	} else if this == nil || that == nil {
-		return false
-	}
-	if this.Type != that.Type {
-		return false
-	}
-	if this.VolName != that.VolName {
-		return false
-	}
-	return string(this.unknownFields) == string(that.unknownFields)
-}
-
-func (this *AdditionalDisk) EqualMessageVT(thatMsg proto.Message) bool {
-	that, ok := thatMsg.(*AdditionalDisk)
-	if !ok {
-		return false
-	}
-	return this.EqualVT(that)
-}
-func (this *NetworkInterfaces) EqualVT(that *NetworkInterfaces) bool {
-	if this == that {
-		return true
-	} else if this == nil || that == nil {
-		return false
-	}
-	if this.Driver != that.Driver {
-		return false
-	}
-	if this.Network != that.Network {
-		return false
-	}
-	return string(this.unknownFields) == string(that.unknownFields)
-}
-
-func (this *NetworkInterfaces) EqualMessageVT(thatMsg proto.Message) bool {
-	that, ok := thatMsg.(*NetworkInterfaces)
-	if !ok {
-		return false
-	}
-	return this.EqualVT(that)
-}
 func (this *MachineSpec) EqualVT(that *MachineSpec) bool {
 	if this == that {
 		return true
 	} else if this == nil || that == nil {
 		return false
 	}
-	if this.Uuid != that.Uuid {
+	if this.VmId != that.VmId {
 		return false
+	}
+	if this.VmName != that.VmName {
+		return false
+	}
+	if this.TemplateName != that.TemplateName {
+		return false
+	}
+	if this.TemplateId != that.TemplateId {
+		return false
+	}
+	if this.ImageName != that.ImageName {
+		return false
+	}
+	if this.Datastore != that.Datastore {
+		return false
+	}
+	if len(this.NetworkNames) != len(that.NetworkNames) {
+		return false
+	}
+	for i, vx := range this.NetworkNames {
+		vy := that.NetworkNames[i]
+		if vx != vy {
+			return false
+		}
 	}
 	if this.SchematicId != that.SchematicId {
 		return false
@@ -152,50 +90,13 @@ func (this *MachineSpec) EqualVT(that *MachineSpec) bool {
 	if this.TalosVersion != that.TalosVersion {
 		return false
 	}
-	if this.VmVolName != that.VmVolName {
+	if this.Flavor != that.Flavor {
 		return false
 	}
-	if len(this.AdditionalDisks) != len(that.AdditionalDisks) {
+	if this.Phase != that.Phase {
 		return false
 	}
-	for i, vx := range this.AdditionalDisks {
-		vy := that.AdditionalDisks[i]
-		if p, q := vx, vy; p != q {
-			if p == nil {
-				p = &AdditionalDisk{}
-			}
-			if q == nil {
-				q = &AdditionalDisk{}
-			}
-			if !p.EqualVT(q) {
-				return false
-			}
-		}
-	}
-	if len(this.NetworkInterfaces) != len(that.NetworkInterfaces) {
-		return false
-	}
-	for i, vx := range this.NetworkInterfaces {
-		vy := that.NetworkInterfaces[i]
-		if p, q := vx, vy; p != q {
-			if p == nil {
-				p = &NetworkInterfaces{}
-			}
-			if q == nil {
-				q = &NetworkInterfaces{}
-			}
-			if !p.EqualVT(q) {
-				return false
-			}
-		}
-	}
-	if this.CidataVolName != that.CidataVolName {
-		return false
-	}
-	if this.PoolName != that.PoolName {
-		return false
-	}
-	if this.VmName != that.VmName {
+	if this.LastError != that.LastError {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -208,100 +109,6 @@ func (this *MachineSpec) EqualMessageVT(thatMsg proto.Message) bool {
 	}
 	return this.EqualVT(that)
 }
-func (m *AdditionalDisk) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
-	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *AdditionalDisk) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
-}
-
-func (m *AdditionalDisk) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
-	}
-	if len(m.VolName) > 0 {
-		i -= len(m.VolName)
-		copy(dAtA[i:], m.VolName)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.VolName)))
-		i--
-		dAtA[i] = 0x1a
-	}
-	if len(m.Type) > 0 {
-		i -= len(m.Type)
-		copy(dAtA[i:], m.Type)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Type)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *NetworkInterfaces) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
-	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *NetworkInterfaces) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
-}
-
-func (m *NetworkInterfaces) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
-	}
-	if len(m.Network) > 0 {
-		i -= len(m.Network)
-		copy(dAtA[i:], m.Network)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Network)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.Driver) > 0 {
-		i -= len(m.Driver)
-		copy(dAtA[i:], m.Driver)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Driver)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
 func (m *MachineSpec) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -332,59 +139,24 @@ func (m *MachineSpec) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.VmName) > 0 {
-		i -= len(m.VmName)
-		copy(dAtA[i:], m.VmName)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.VmName)))
+	if len(m.LastError) > 0 {
+		i -= len(m.LastError)
+		copy(dAtA[i:], m.LastError)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.LastError)))
 		i--
-		dAtA[i] = 0x1
+		dAtA[i] = 0x62
+	}
+	if len(m.Phase) > 0 {
+		i -= len(m.Phase)
+		copy(dAtA[i:], m.Phase)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Phase)))
 		i--
-		dAtA[i] = 0xaa
+		dAtA[i] = 0x5a
 	}
-	if len(m.PoolName) > 0 {
-		i -= len(m.PoolName)
-		copy(dAtA[i:], m.PoolName)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.PoolName)))
-		i--
-		dAtA[i] = 0x1
-		i--
-		dAtA[i] = 0xa2
-	}
-	if len(m.CidataVolName) > 0 {
-		i -= len(m.CidataVolName)
-		copy(dAtA[i:], m.CidataVolName)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.CidataVolName)))
-		i--
-		dAtA[i] = 0x6a
-	}
-	if len(m.NetworkInterfaces) > 0 {
-		for iNdEx := len(m.NetworkInterfaces) - 1; iNdEx >= 0; iNdEx-- {
-			size, err := m.NetworkInterfaces[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-			i--
-			dAtA[i] = 0x62
-		}
-	}
-	if len(m.AdditionalDisks) > 0 {
-		for iNdEx := len(m.AdditionalDisks) - 1; iNdEx >= 0; iNdEx-- {
-			size, err := m.AdditionalDisks[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
-			i--
-			dAtA[i] = 0x5a
-		}
-	}
-	if len(m.VmVolName) > 0 {
-		i -= len(m.VmVolName)
-		copy(dAtA[i:], m.VmVolName)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.VmVolName)))
+	if len(m.Flavor) > 0 {
+		i -= len(m.Flavor)
+		copy(dAtA[i:], m.Flavor)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Flavor)))
 		i--
 		dAtA[i] = 0x52
 	}
@@ -393,59 +165,63 @@ func (m *MachineSpec) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		copy(dAtA[i:], m.TalosVersion)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TalosVersion)))
 		i--
-		dAtA[i] = 0x1a
+		dAtA[i] = 0x4a
 	}
 	if len(m.SchematicId) > 0 {
 		i -= len(m.SchematicId)
 		copy(dAtA[i:], m.SchematicId)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.SchematicId)))
 		i--
+		dAtA[i] = 0x42
+	}
+	if len(m.NetworkNames) > 0 {
+		for iNdEx := len(m.NetworkNames) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.NetworkNames[iNdEx])
+			copy(dAtA[i:], m.NetworkNames[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.NetworkNames[iNdEx])))
+			i--
+			dAtA[i] = 0x3a
+		}
+	}
+	if len(m.Datastore) > 0 {
+		i -= len(m.Datastore)
+		copy(dAtA[i:], m.Datastore)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Datastore)))
+		i--
+		dAtA[i] = 0x32
+	}
+	if len(m.ImageName) > 0 {
+		i -= len(m.ImageName)
+		copy(dAtA[i:], m.ImageName)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ImageName)))
+		i--
+		dAtA[i] = 0x2a
+	}
+	if m.TemplateId != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.TemplateId))
+		i--
+		dAtA[i] = 0x20
+	}
+	if len(m.TemplateName) > 0 {
+		i -= len(m.TemplateName)
+		copy(dAtA[i:], m.TemplateName)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.TemplateName)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.VmName) > 0 {
+		i -= len(m.VmName)
+		copy(dAtA[i:], m.VmName)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.VmName)))
+		i--
 		dAtA[i] = 0x12
 	}
-	if len(m.Uuid) > 0 {
-		i -= len(m.Uuid)
-		copy(dAtA[i:], m.Uuid)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Uuid)))
+	if m.VmId != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.VmId))
 		i--
-		dAtA[i] = 0xa
+		dAtA[i] = 0x8
 	}
 	return len(dAtA) - i, nil
-}
-
-func (m *AdditionalDisk) SizeVT() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Type)
-	if l > 0 {
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	l = len(m.VolName)
-	if l > 0 {
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	n += len(m.unknownFields)
-	return n
-}
-
-func (m *NetworkInterfaces) SizeVT() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Driver)
-	if l > 0 {
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	l = len(m.Network)
-	if l > 0 {
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	n += len(m.unknownFields)
-	return n
 }
 
 func (m *MachineSpec) SizeVT() (n int) {
@@ -454,9 +230,33 @@ func (m *MachineSpec) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.Uuid)
+	if m.VmId != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.VmId))
+	}
+	l = len(m.VmName)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.TemplateName)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.TemplateId != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.TemplateId))
+	}
+	l = len(m.ImageName)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.Datastore)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if len(m.NetworkNames) > 0 {
+		for _, s := range m.NetworkNames {
+			l = len(s)
+			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
 	}
 	l = len(m.SchematicId)
 	if l > 0 {
@@ -466,268 +266,22 @@ func (m *MachineSpec) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	l = len(m.VmVolName)
+	l = len(m.Flavor)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	if len(m.AdditionalDisks) > 0 {
-		for _, e := range m.AdditionalDisks {
-			l = e.SizeVT()
-			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-		}
-	}
-	if len(m.NetworkInterfaces) > 0 {
-		for _, e := range m.NetworkInterfaces {
-			l = e.SizeVT()
-			n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-		}
-	}
-	l = len(m.CidataVolName)
+	l = len(m.Phase)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
-	l = len(m.PoolName)
+	l = len(m.LastError)
 	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	l = len(m.VmName)
-	if l > 0 {
-		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
 }
 
-func (m *AdditionalDisk) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return protohelpers.ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: AdditionalDisk: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: AdditionalDisk: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Type = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field VolName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.VolName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *NetworkInterfaces) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return protohelpers.ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: NetworkInterfaces: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: NetworkInterfaces: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Driver", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Driver = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Network", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Network = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := protohelpers.Skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *MachineSpec) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -758,8 +312,27 @@ func (m *MachineSpec) UnmarshalVT(dAtA []byte) error {
 		}
 		switch fieldNum {
 		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field VmId", wireType)
+			}
+			m.VmId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.VmId |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Uuid", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field VmName", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -787,9 +360,156 @@ func (m *MachineSpec) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Uuid = string(dAtA[iNdEx:postIndex])
+			m.VmName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 2:
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TemplateName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TemplateName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TemplateId", wireType)
+			}
+			m.TemplateId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TemplateId |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ImageName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ImageName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Datastore", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Datastore = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NetworkNames", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.NetworkNames = append(m.NetworkNames, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 8:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field SchematicId", wireType)
 			}
@@ -821,7 +541,7 @@ func (m *MachineSpec) UnmarshalVT(dAtA []byte) error {
 			}
 			m.SchematicId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 3:
+		case 9:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TalosVersion", wireType)
 			}
@@ -855,7 +575,7 @@ func (m *MachineSpec) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 10:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field VmVolName", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Flavor", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -883,13 +603,13 @@ func (m *MachineSpec) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.VmVolName = string(dAtA[iNdEx:postIndex])
+			m.Flavor = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 11:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field AdditionalDisks", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Phase", wireType)
 			}
-			var msglen int
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return protohelpers.ErrIntOverflow
@@ -899,63 +619,27 @@ func (m *MachineSpec) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if msglen < 0 {
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
 				return protohelpers.ErrInvalidLength
 			}
-			postIndex := iNdEx + msglen
+			postIndex := iNdEx + intStringLen
 			if postIndex < 0 {
 				return protohelpers.ErrInvalidLength
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.AdditionalDisks = append(m.AdditionalDisks, &AdditionalDisk{})
-			if err := m.AdditionalDisks[len(m.AdditionalDisks)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
+			m.Phase = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 12:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field NetworkInterfaces", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.NetworkInterfaces = append(m.NetworkInterfaces, &NetworkInterfaces{})
-			if err := m.NetworkInterfaces[len(m.NetworkInterfaces)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 13:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CidataVolName", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field LastError", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -983,71 +667,7 @@ func (m *MachineSpec) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.CidataVolName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 20:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PoolName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.PoolName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 21:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field VmName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.VmName = string(dAtA[iNdEx:postIndex])
+			m.LastError = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

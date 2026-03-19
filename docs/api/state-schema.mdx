@@ -1,0 +1,41 @@
+---
+title: State schema
+description: Provider-owned OpenNebula machine state persisted in Omni.
+---
+
+# State schema
+
+The provider persists OpenNebula-specific state in its provider-owned machine resource so retries and deprovisioning remain restart-safe.
+
+## Fields
+
+```proto
+message MachineSpec {
+  int32 vm_id = 1;
+  string vm_name = 2;
+  string template_name = 3;
+  int32 template_id = 4;
+  string image_name = 5;
+  string datastore = 6;
+  repeated string network_names = 7;
+  string schematic_id = 8;
+  string talos_version = 9;
+  string flavor = 10;
+  string phase = 11;
+  string last_error = 12;
+}
+```
+
+## Why these fields exist
+
+- `vm_id` and `vm_name` identify the provisioned VM.
+- `template_*`, `image_name`, `datastore`, and `network_names` capture the resolved infrastructure inputs.
+- `schematic_id` and `talos_version` explain which Talos artifact path was chosen.
+- `flavor` records the selected named shape when used.
+- `phase` and `last_error` support retry and troubleshooting.
+
+## Lifecycle expectations
+
+- Provisioning writes state as infrastructure inputs become concrete.
+- Deprovision clears infrastructure identity fields and marks the phase as `deleted`.
+- Missing VMs during deprovision are treated as already deleted success.

@@ -1,0 +1,48 @@
+---
+title: Contributing
+description: Contributor expectations for public docs, examples, and automation surfaces.
+---
+
+# Contributing
+
+Use this page with `README.md`, `AGENTS.md`, and `refs/RULES.md`.
+
+## Workflow
+
+1. Read `AGENTS.md` for architecture, ownership boundaries, and implementation order.
+2. Follow the contribution and testing rules in `refs/RULES.md`.
+3. Keep public docs in `docs/` synchronized with behavior changes.
+4. Keep private findings in the context store or `refs/notes/`, not in public docs.
+
+## Required checks
+
+Run the checks that cover your surface area:
+
+```bash
+go test ./...
+uv run --project tools/ctx pytest
+make omni-infra-provider-opennebula
+```
+
+If you touch the Python context CLI, also run:
+
+```bash
+uv run --project tools/ctx ruff check .
+uv run --project tools/ctx mypy src
+```
+
+## Contract changes
+
+If you change any of the following, update the matching docs and examples:
+
+- `providerData` schema
+- runtime config contract
+- provider-owned state schema
+- deployment environment variables
+- release image naming
+
+## Private versus public material
+
+- `docs/` is public-facing.
+- `refs/KB.md` is tracked internal guidance.
+- `refs/docs/ctx/`, `refs/tasks/`, and `refs/notes/` are intentionally private and gitignored.

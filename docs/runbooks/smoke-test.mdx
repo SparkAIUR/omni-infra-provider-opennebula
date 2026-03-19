@@ -1,0 +1,47 @@
+---
+title: Smoke test runbook
+description: Manual validation flow for provider startup, VM lifecycle, and Omni join behavior.
+---
+
+# Smoke test runbook
+
+Use this runbook for release-candidate and lab validation.
+
+## Preconditions
+
+- The provider is deployed and healthy in Kubernetes.
+- Omni can see the provider as `opennebula`.
+- The required Talos image already exists in OpenNebula.
+- The target OpenNebula template, datastore, and networks exist.
+
+## Core smoke flow
+
+1. Apply the provider config and deployment manifest.
+2. Apply the OpenNebula machine classes.
+3. Create or update a cluster template that uses those classes.
+4. Provision one worker node.
+5. Confirm a VM is created in OpenNebula.
+6. Confirm the Talos node appears in Omni.
+7. Confirm the Talos hostname matches the VM name.
+8. Scale out.
+9. Scale down and confirm the VM is removed.
+
+## Manual-networking check
+
+Run one machine class with `networkContextMode: manual` and confirm the rendered OpenNebula context produces the expected guest addressing.
+
+## Provider restart check
+
+Restart the provider after VM instantiation but before the request finishes. Confirm the reconcile loop resumes using the stored OpenNebula state rather than creating a duplicate VM.
+
+## Useful repo-local helpers
+
+The `.assh/` directory includes scripts for listing OpenNebula resources and running a smoke workflow shell wrapper.
+
+## Evidence to capture
+
+- OpenNebula VM ID and name
+- Omni machine request ID
+- provider logs for instantiate and deprovision
+- confirmation that `USER_DATA` is redacted in logs
+- scale-down confirmation

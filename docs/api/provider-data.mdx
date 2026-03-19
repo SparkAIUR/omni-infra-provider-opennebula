@@ -1,0 +1,84 @@
+---
+title: Provider data
+description: Public v1alpha1 machine-class contract for the OpenNebula provider.
+---
+
+# Provider data
+
+`providerData` is the machine-class payload that Omni passes to the OpenNebula provider for each provision request.
+
+## Supported schema version
+
+```yaml
+schemaVersion: v1alpha1
+```
+
+## Supported fields
+
+```yaml
+schemaVersion: v1alpha1
+flavor: small
+resources:
+  cpu: "4"
+  vcpu: 4
+  memoryMiB: 8192
+  rootDiskGiB: 40
+templateName: talos-omni-base
+datastore: ssd-primary
+networks:
+  - name: talos-prod
+networkContextMode: auto
+staticNetwork:
+  - name: eth0
+    mac: "02:00:00:00:00:10"
+    ip: 10.0.10.25
+    gateway: 10.0.10.1
+    dns:
+      - 10.0.10.53
+rootDiskGiB: 80
+firmware:
+  mode: uefi
+  secureBoot: true
+graphics:
+  enabled: false
+tags:
+  role: worker
+gpu:
+  enabled: true
+  count: 1
+```
+
+## Validation rules
+
+- `schemaVersion` must be `v1alpha1`.
+- Set either `flavor` or `resources`, not both.
+- `networkContextMode` must be `auto` or `manual`.
+- At least one entry in `networks` is required.
+- `manual` networking requires `staticNetwork`.
+- `gpu` remains schema-visible but is rejected unless the feature flag enables it.
+- Hostname is derived from the Omni request ID and is not user-configurable.
+
+## Networking behavior
+
+### `auto`
+
+The provider renders:
+
+```text
+NETWORK = "YES"
+```
+
+### `manual`
+
+The provider renders:
+
+```text
+NETWORK = "NO"
+ETH0_IP = "..."
+ETH0_GATEWAY = "..."
+ETH0_DNS = "..."
+```
+
+## Examples
+
+See [/examples/machineclass](/examples/machineclass) for ready-to-apply machine-class payloads.

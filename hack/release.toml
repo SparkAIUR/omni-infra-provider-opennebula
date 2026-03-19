@@ -1,8 +1,8 @@
 # commit to be tagged for the new release
 commit = "HEAD"
 
-project_name = "omni-infra-provider-libvirt"
-github_repo = "siderolabs/omni-infra-provider-libvirt"
+project_name = "omni-infra-provider-opennebula"
+github_repo = "SparkAIUR/omni-infra-provider-opennebula"
 match_deps = "^github.com/(/[a-zA-Z0-9-]+)$"
 ignore_deps = ["gopkg.in/yaml.v3"]
 

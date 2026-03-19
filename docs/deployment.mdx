@@ -1,0 +1,74 @@
+---
+title: Deployment
+description: Runtime config contract and Kubernetes deployment patterns for the provider.
+---
+
+# Deployment
+
+This page covers the provider runtime contract and the supported Kubernetes deployment patterns for running the provider in-cluster.
+
+## Container image
+
+Use:
+
+```text
+docker.io/nudevco/omni-infra-provider-opennebula:<tag>
+```
+
+## Required inputs
+
+- Omni API endpoint
+- Omni service-account key
+- OpenNebula endpoint in the provider config file
+- One OpenNebula auth mode
+
+## OpenNebula auth
+
+Supported auth environment variables:
+
+- `OPENNEBULA_SESSION`
+- `OPENNEBULA_USERNAME`
+- `OPENNEBULA_PASSWORD`
+
+## Provider config example
+
+Use the full example at [/examples/provider-config](/examples/provider-config). The minimal shape is:
+
+```yaml
+providerID: opennebula
+opennebula:
+  endpoint: "https://opennebula.example.com/RPC2"
+  templateName: "talos-omni-base"
+defaults:
+  flavor: "small"
+  firmware: "uefi"
+  networkContextMode: "auto"
+  hostnameStrategy: "vm-name"
+features:
+  allowExplicitResources: true
+  enableGPU: false
+  hardDelete: false
+timeouts:
+  instantiate: 2m
+  vmReady: 10m
+  terminate: 5m
+flavors:
+  small:
+    cpu: "2"
+    vcpu: 2
+    memoryMiB: 4096
+    rootDiskGiB: 40
+```
+
+## Example manifests
+
+This repository ships two deployment examples:
+
+- `test/kubernetes-deployment.socket.yaml`: session-token auth example
+- `test/kubernetes-deployment.ssh.yaml`: username/password auth example
+
+The filenames are historical; both are OpenNebula runtime examples.
+
+## Operator-managed prerequisites
+
+The v1 provider assumes the base Talos image already exists in OpenNebula. Automatic image import is not part of the first delivery.

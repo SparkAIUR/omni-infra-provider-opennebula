@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "v1alpha1"
+    },
+    "flavor": {
+      "type": "string",
+      "description": "Named flavor from the provider runtime configuration."
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cpu": {
+          "type": "string"
+        },
+        "vcpu": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "memoryMiB": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rootDiskGiB": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "templateName": {
+      "type": "string"
+    },
+    "datastore": {
+      "type": "string"
+    },
+    "networks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": ["name"]
+      }
+    },
+    "networkContextMode": {
+      "type": "string",
+      "enum": ["auto", "manual"]
+    },
+    "staticNetwork": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "mac": {
+            "type": "string"
+          },
+          "ip": {
+            "type": "string"
+          },
+          "gateway": {
+            "type": "string"
+          },
+          "dns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "rootDiskGiB": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "firmware": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["uefi", "bios"]
+        },
+        "secureBoot": {
+          "type": "boolean"
+        }
+      }
+    },
+    "graphics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "tags": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "gpu": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "vendor": {
+          "type": "string"
+        },
+        "device": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "profile": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "networks"
+  ]
+}

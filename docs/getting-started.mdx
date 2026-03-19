@@ -1,0 +1,61 @@
+---
+title: Getting started
+description: First-run setup for building, configuring, and deploying the OpenNebula provider.
+---
+
+# Getting started
+
+This page covers the shortest path to building the provider, validating the internal tooling, and preparing the runtime configuration expected by Omni and OpenNebula.
+
+## Prerequisites
+
+- Go `1.26.x`
+- Docker with `buildx`
+- `uv` for the private context-store CLI
+- Access to an Omni endpoint and service-account key
+- Access to an OpenNebula endpoint and either a session token or username/password
+
+## Build and test locally
+
+Run the core verification set from the repository root:
+
+```bash
+go test ./...
+uv run --project tools/ctx pytest
+make omni-infra-provider-opennebula
+```
+
+To build the container image locally:
+
+```bash
+make image-omni-infra-provider-opennebula
+```
+
+## Runtime config
+
+The provider reads a YAML config file with these top-level sections:
+
+- `providerID`
+- `opennebula`
+- `defaults`
+- `features`
+- `timeouts`
+- `flavors`
+
+Use the example in [/examples/provider-config](/examples/provider-config) as the baseline.
+
+## Auth modes
+
+The runtime supports two auth paths:
+
+1. `OPENNEBULA_SESSION`
+2. `OPENNEBULA_USERNAME` plus `OPENNEBULA_PASSWORD`
+
+If both are set, the session token wins.
+
+## First machine-class flow
+
+1. Deploy the provider using the manifest pattern in [/deployment](/deployment).
+2. Create a machine class using the examples in [/examples/machineclass](/examples/machineclass).
+3. Apply or update a cluster template that references the OpenNebula machine class.
+4. Confirm the provider creates a VM in OpenNebula and the node joins Omni.

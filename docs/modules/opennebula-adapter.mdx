@@ -1,0 +1,37 @@
+---
+title: OpenNebula adapter
+description: GOCA-backed OpenNebula transport layer and fake-client contract.
+---
+
+# OpenNebula adapter
+
+The OpenNebula adapter isolates GOCA and OpenNebula transport details from the provider orchestration layer.
+
+## Purpose
+
+`internal/pkg/opennebula/` provides:
+
+- template lookup
+- image lookup
+- datastore lookup
+- network lookup
+- template instantiation
+- VM info polling
+- VM termination
+
+## Key files
+
+- `internal/pkg/opennebula/types.go`
+- `internal/pkg/opennebula/goca.go`
+- `internal/pkg/opennebula/errors.go`
+- `internal/pkg/opennebula/fake/client.go`
+
+## Contracts
+
+- The adapter returns normalized references instead of raw GOCA types.
+- Not-found behavior is normalized so the provider can treat missing VMs as success during delete.
+- The fake client mirrors the production interface for fast unit and integration-style tests.
+
+## Change notes
+
+Keep GOCA-specific details inside this package. If an OpenNebula API or GOCA behavior changes, update the adapter first and keep the rest of the provider stable.

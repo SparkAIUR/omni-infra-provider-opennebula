@@ -1,0 +1,66 @@
+---
+title: Machine class examples
+description: Example OpenNebula machine classes that match the public providerData contract.
+---
+
+# Machine class examples
+
+These examples mirror the repository’s `test/machineclass.yaml`.
+
+## Flavor-based worker
+
+```yaml
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: opennebula-small
+spec:
+  autoprovision:
+    providerid: opennebula
+    providerdata: |
+      schemaVersion: v1alpha1
+      flavor: small
+      templateName: talos-omni-base
+      datastore: ssd-primary
+      networks:
+        - name: talos-prod
+      networkContextMode: auto
+      graphics:
+        enabled: false
+```
+
+## Explicit-resource machine with manual networking
+
+```yaml
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: opennebula-large
+spec:
+  autoprovision:
+    providerid: opennebula
+    providerdata: |
+      schemaVersion: v1alpha1
+      resources:
+        cpu: "8"
+        vcpu: 8
+        memoryMiB: 32768
+        rootDiskGiB: 160
+      templateName: talos-omni-base
+      datastore: ceph-images
+      networks:
+        - name: talos-prod
+      networkContextMode: manual
+      staticNetwork:
+        - name: eth0
+          ip: 10.20.30.40
+          gateway: 10.20.30.1
+          dns:
+            - 10.20.30.53
+            - 1.1.1.1
+      firmware:
+        mode: uefi
+        secureBoot: true
+      graphics:
+        enabled: false
+```

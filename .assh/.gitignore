@@ -1,0 +1,4 @@
+config.toml
+state.db
+logs/
+sockets/

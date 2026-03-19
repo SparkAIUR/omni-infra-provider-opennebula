@@ -1,0 +1,54 @@
+---
+title: Provider config example
+description: Full runtime config example for the OpenNebula provider.
+---
+
+# Provider config example
+
+This is a full runtime config example for the provider:
+
+```yaml
+providerID: opennebula
+opennebula:
+  endpoint: "https://opennebula.example.com/RPC2"
+  templateName: "talos-omni-base"
+  allowedDatastores:
+    - "ssd-primary"
+    - "ceph-images"
+  allowedNetworks:
+    - "talos-prod"
+    - "talos-mgmt"
+  imageNamePattern: "talos-opennebula-{{ .Arch }}-{{ .TalosVersion }}-schematic-{{ .SchematicID }}"
+defaults:
+  flavor: "small"
+  firmware: "uefi"
+  secureBoot: true
+  graphicsEnabled: false
+  networkContextMode: "auto"
+  hostnameStrategy: "vm-name"
+features:
+  allowExplicitResources: true
+  enableGPU: false
+  hardDelete: false
+timeouts:
+  instantiate: 2m
+  vmReady: 10m
+  terminate: 5m
+flavors:
+  small:
+    cpu: "2"
+    vcpu: 2
+    memoryMiB: 4096
+    rootDiskGiB: 40
+  medium:
+    cpu: "4"
+    vcpu: 4
+    memoryMiB: 8192
+    rootDiskGiB: 80
+```
+
+## Notes
+
+- Secrets do not belong in this file.
+- If `allowedDatastores` or `allowedNetworks` are empty, the provider does not restrict them.
+- `imageNamePattern` should match the Talos image naming used in your OpenNebula image catalog.

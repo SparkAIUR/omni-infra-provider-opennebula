@@ -1,0 +1,30 @@
+providerID: opennebula
+opennebula:
+  endpoint: "__ONE_ENDPOINT__"
+  templateName: "__ONE_TEMPLATE_NAME__"
+  allowedDatastores:
+__ONE_ALLOWED_DATASTORES__
+  allowedNetworks:
+__ONE_ALLOWED_NETWORKS__
+  imageNamePattern: "talos-opennebula-{{ .Arch }}-{{ .TalosVersion }}-schematic-{{ .SchematicID }}"
+defaults:
+  flavor: "small"
+  firmware: "uefi"
+  secureBoot: true
+  graphicsEnabled: false
+  networkContextMode: "auto"
+  hostnameStrategy: "vm-name"
+features:
+  allowExplicitResources: true
+  enableGPU: false
+  hardDelete: false
+timeouts:
+  instantiate: 2m
+  vmReady: 10m
+  terminate: 5m
+flavors:
+  small:
+    cpu: "2"
+    vcpu: 2
+    memoryMiB: 4096
+    rootDiskGiB: 40
