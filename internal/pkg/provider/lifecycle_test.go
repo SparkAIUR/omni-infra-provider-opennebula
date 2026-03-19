@@ -2,9 +2,13 @@ package provider
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/siderolabs/image-factory/pkg/schematic"
 	"github.com/siderolabs/omni/client/pkg/infra/provision"
@@ -134,8 +138,8 @@ networks:
 		pctx := newProvisionContext(machineRequest, state, "schem-123")
 
 		err := provisioner.instantiateVM(context.Background(), zap.NewNop(), pctx)
-		if err == nil || !strings.Contains(err.Error(), "lookup image") {
-			t.Fatalf("expected lookup image retry error, got %v", err)
+		if err == nil || !strings.Contains(err.Error(), "resolve image") {
+			t.Fatalf("expected resolve image error, got %v", err)
 		}
 	})
 
@@ -165,6 +169,63 @@ networks:
 			t.Fatalf("expected instantiate retry error, got %v", err)
 		}
 	})
+}
+
+func TestInstantiateVMImportsMissingImageWhenConfigured(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte("talos-image-data")
+	checksum := fmt.Sprintf("%x", sha256.Sum256(payload))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/disk.qcow2":
+			_, _ = w.Write(payload)
+		case "/disk.qcow2.sha256":
+			_, _ = w.Write([]byte(checksum + "  disk.qcow2\n"))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	cfg := testConfig()
+	cfg.ImageManagement.ImportOnMiss = true
+	cfg.ImageManagement.RequireChecksum = true
+	cfg.ImageManagement.ArtifactURLTemplate = server.URL + "/disk.qcow2"
+	cfg.ImageManagement.ChecksumURLTemplate = server.URL + "/disk.qcow2.sha256"
+	cfg.ImageManagement.ImportTimeout = time.Second
+	cfg.ImageManagement.PollInterval = 10 * time.Millisecond
+
+	client := opennebulafake.New()
+	client.Templates["talos-base"] = opennebula.TemplateRef{ID: 11, Name: "talos-base"}
+	client.Datastores["fast-ssd"] = opennebula.DatastoreRef{ID: 31, Name: "fast-ssd"}
+	client.Networks["prod-lan"] = opennebula.NetworkRef{ID: 41, Name: "prod-lan"}
+
+	provisioner := NewProvisioner(client, cfg, nil)
+	machineRequest := newMachineRequest(t, `
+schemaVersion: v1alpha1
+flavor: small
+datastore: fast-ssd
+networks:
+  - name: prod-lan
+`)
+	state := resources.NewMachine("default", machineRequest.Metadata().ID())
+	state.TypedSpec().Value.VmName = "worker-01"
+	state.TypedSpec().Value.SchematicId = "schem-123"
+	pctx := newProvisionContext(machineRequest, state, "schem-123")
+
+	if err := provisioner.instantiateVM(context.Background(), zap.NewNop(), pctx); err != nil {
+		t.Fatalf("instantiateVM() error = %v", err)
+	}
+
+	if client.LastCreateImage.Name == "" {
+		t.Fatal("expected image import request to be issued")
+	}
+
+	if state.TypedSpec().Value.ImageId == 0 || state.TypedSpec().Value.ImageChecksum == "" || state.TypedSpec().Value.ImageSource == "" {
+		t.Fatalf("expected image import state to be persisted, got %+v", state.TypedSpec().Value)
+	}
 }
 
 func TestDeprovisionHandlesNotFoundAndHardDelete(t *testing.T) {

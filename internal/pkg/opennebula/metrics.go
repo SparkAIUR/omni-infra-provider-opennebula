@@ -55,6 +55,25 @@ func (c *instrumentedClient) LookupNetworksByName(ctx context.Context, names []s
 	})
 }
 
+func (c *instrumentedClient) CreateImage(ctx context.Context, request CreateImageRequest) (ImageRef, error) {
+	return observe(c, "create_image", func() (ImageRef, error) {
+		return c.inner.CreateImage(ctx, request)
+	})
+}
+
+func (c *instrumentedClient) GetImage(ctx context.Context, imageID int) (ImageInfo, error) {
+	return observe(c, "get_image", func() (ImageInfo, error) {
+		return c.inner.GetImage(ctx, imageID)
+	})
+}
+
+func (c *instrumentedClient) DeleteImage(ctx context.Context, imageID int) error {
+	start := time.Now()
+	err := c.inner.DeleteImage(ctx, imageID)
+	c.metrics.ObserveOpenNebulaRequest("delete_image", string(ClassifyError(err)), time.Since(start))
+	return err
+}
+
 func (c *instrumentedClient) InstantiateTemplate(ctx context.Context, request InstantiateRequest) (VMRef, error) {
 	return observe(c, "instantiate_template", func() (VMRef, error) {
 		return c.inner.InstantiateTemplate(ctx, request)

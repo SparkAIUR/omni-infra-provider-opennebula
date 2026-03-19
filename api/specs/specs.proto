@@ -17,4 +17,9 @@ message MachineSpec {
   string flavor = 10;
   string phase = 11;
   string last_error = 12;
+  int32 image_id = 13;
+  string image_source = 14;
+  string image_checksum = 15;
+  string last_successful_phase_at = 16;
+  string last_retry_classification = 17;
 }

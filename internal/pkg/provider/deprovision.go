@@ -33,6 +33,7 @@ func (p *Provisioner) deprovision(ctx context.Context, logger *zap.Logger, machi
 
 	SetPhase(machine, "delete_requested")
 	if err := p.client.TerminateVM(ctx, vmID, p.config.Features.HardDelete); err != nil {
+		SetLastRetryClassification(machine, string(opennebula.ClassifyError(err)))
 		if opennebula.IsNotFoundError(err) {
 			provisionLogger(logger, machine, machine.Metadata().ID()).Info("vm already deleted", zap.Int("vm_id", vmID))
 			clearProvisionedState(machine)
@@ -57,13 +58,18 @@ func (p *Provisioner) deprovision(ctx context.Context, logger *zap.Logger, machi
 
 func clearProvisionedState(machine *resources.Machine) {
 	SetLastError(machine, "")
+	SetLastRetryClassification(machine, "")
 	SetVMID(machine, 0)
 	SetTemplateName(machine, "")
 	SetTemplateID(machine, 0)
+	SetImageID(machine, 0)
 	SetImageName(machine, "")
+	SetImageSource(machine, "")
+	SetImageChecksum(machine, "")
 	SetDatastore(machine, "")
 	SetFlavor(machine, "")
 	SetNetworkNames(machine, nil)
+	machine.TypedSpec().Value.LastSuccessfulPhaseAt = ""
 	machine.TypedSpec().Value.SchematicId = ""
 	machine.TypedSpec().Value.TalosVersion = ""
 	machine.TypedSpec().Value.VmName = ""

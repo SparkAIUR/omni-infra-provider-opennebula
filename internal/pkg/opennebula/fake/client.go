@@ -17,6 +17,7 @@ type Client struct {
 	mu                sync.Mutex
 	Templates         map[string]parent.TemplateRef
 	Images            map[string]parent.ImageRef
+	ImageInfoByID     map[int]parent.ImageInfo
 	Datastores        map[string]parent.DatastoreRef
 	Networks          map[string]parent.NetworkRef
 	VMs               map[int]parent.VMInfo
@@ -24,21 +25,29 @@ type Client struct {
 	LookupImageErr    error
 	LookupVMErr       error
 	TerminateErr      error
+	CreateImageErr    error
+	GetImageErr       error
+	DeleteImageErr    error
 	LastTerminateID   int
 	LastTerminateHard bool
+	LastDeleteImageID int
 	NextVMID          int
+	NextImageID       int
 	LastInstantiate   parent.InstantiateRequest
+	LastCreateImage   parent.CreateImageRequest
 }
 
 // New creates a fake OpenNebula client.
 func New() *Client {
 	return &Client{
-		Templates:  map[string]parent.TemplateRef{},
-		Images:     map[string]parent.ImageRef{},
-		Datastores: map[string]parent.DatastoreRef{},
-		Networks:   map[string]parent.NetworkRef{},
-		VMs:        map[int]parent.VMInfo{},
-		NextVMID:   100,
+		Templates:     map[string]parent.TemplateRef{},
+		Images:        map[string]parent.ImageRef{},
+		ImageInfoByID: map[int]parent.ImageInfo{},
+		Datastores:    map[string]parent.DatastoreRef{},
+		Networks:      map[string]parent.NetworkRef{},
+		VMs:           map[int]parent.VMInfo{},
+		NextVMID:      100,
+		NextImageID:   200,
 	}
 }
 
@@ -97,6 +106,100 @@ func (c *Client) LookupNetworksByName(_ context.Context, names []string) ([]pare
 	}
 
 	return results, nil
+}
+
+func (c *Client) CreateImage(_ context.Context, request parent.CreateImageRequest) (parent.ImageRef, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.CreateImageErr != nil {
+		return parent.ImageRef{}, c.CreateImageErr
+	}
+
+	c.LastCreateImage = request
+
+	imageID := c.NextImageID
+	c.NextImageID++
+
+	datastoreName := ""
+	for _, ref := range c.Datastores {
+		if ref.ID == request.DatastoreID {
+			datastoreName = ref.Name
+			break
+		}
+	}
+
+	ref := parent.ImageRef{
+		ID:        imageID,
+		Name:      request.Name,
+		Datastore: datastoreName,
+	}
+	info := parent.ImageInfo{
+		ID:        imageID,
+		Name:      request.Name,
+		Datastore: datastoreName,
+		State:     "READY",
+		Source:    request.SourceURL,
+	}
+	c.Images[request.Name] = ref
+	c.ImageInfoByID[imageID] = info
+
+	return ref, nil
+}
+
+func (c *Client) GetImage(_ context.Context, imageID int) (parent.ImageInfo, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.GetImageErr != nil {
+		return parent.ImageInfo{}, c.GetImageErr
+	}
+
+	info, ok := c.ImageInfoByID[imageID]
+	if !ok {
+		for _, ref := range c.Images {
+			if ref.ID != imageID {
+				continue
+			}
+
+			info = parent.ImageInfo{
+				ID:        ref.ID,
+				Name:      ref.Name,
+				Datastore: ref.Datastore,
+				SizeMiB:   ref.SizeMiB,
+				State:     "READY",
+			}
+			c.ImageInfoByID[imageID] = info
+			ok = true
+			break
+		}
+	}
+
+	if !ok {
+		return parent.ImageInfo{}, fmt.Errorf("%w: image %d", parent.ErrNotFound, imageID)
+	}
+
+	return info, nil
+}
+
+func (c *Client) DeleteImage(_ context.Context, imageID int) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.DeleteImageErr != nil {
+		return c.DeleteImageErr
+	}
+
+	info, ok := c.ImageInfoByID[imageID]
+	if !ok {
+		return parent.ErrNotFound
+	}
+
+	c.LastDeleteImageID = imageID
+	delete(c.ImageInfoByID, imageID)
+	delete(c.Images, info.Name)
+
+	return nil
 }
 
 func (c *Client) InstantiateTemplate(_ context.Context, request parent.InstantiateRequest) (parent.VMRef, error) {

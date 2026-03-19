@@ -4,7 +4,11 @@
 
 package provider
 
-import "github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/provider/resources"
+import (
+	"time"
+
+	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/provider/resources"
+)
 
 const (
 	annotationMachineUUID = "opennebula.omni.sidero.dev/machine-uuid"
@@ -54,9 +58,24 @@ func SetTemplateID(machine *resources.Machine, value int) {
 	machine.TypedSpec().Value.TemplateId = int32(value)
 }
 
+// SetImageID persists the resolved image ID.
+func SetImageID(machine *resources.Machine, value int) {
+	machine.TypedSpec().Value.ImageId = int32(value)
+}
+
 // SetImageName persists the resolved image name.
 func SetImageName(machine *resources.Machine, value string) {
 	machine.TypedSpec().Value.ImageName = value
+}
+
+// SetImageSource persists the image source URL used for import resolution.
+func SetImageSource(machine *resources.Machine, value string) {
+	machine.TypedSpec().Value.ImageSource = value
+}
+
+// SetImageChecksum persists the checksum used to verify an imported image.
+func SetImageChecksum(machine *resources.Machine, value string) {
+	machine.TypedSpec().Value.ImageChecksum = value
 }
 
 // SetDatastore persists the resolved datastore name.
@@ -69,14 +88,20 @@ func SetFlavor(machine *resources.Machine, value string) {
 	machine.TypedSpec().Value.Flavor = value
 }
 
-// SetPhase persists the provider phase.
+// SetPhase persists the provider phase and stamps the last successful phase transition time.
 func SetPhase(machine *resources.Machine, value string) {
 	machine.TypedSpec().Value.Phase = value
+	machine.TypedSpec().Value.LastSuccessfulPhaseAt = time.Now().UTC().Format(time.RFC3339)
 }
 
 // SetLastError persists the last error message for troubleshooting.
 func SetLastError(machine *resources.Machine, value string) {
 	machine.TypedSpec().Value.LastError = value
+}
+
+// SetLastRetryClassification persists the latest retry/error classification.
+func SetLastRetryClassification(machine *resources.Machine, value string) {
+	machine.TypedSpec().Value.LastRetryClassification = value
 }
 
 // SetNetworkNames persists the resolved network names.

@@ -13,14 +13,17 @@ import "context"
 //
 //	vmRef, err := client.InstantiateTemplate(ctx, InstantiateRequest{
 //	    TemplateID:    42,
-//	    Name:          "worker-01",
-//	    ExtraTemplate: render,
+//	    VMName:        "worker-01",
+//	    ExtraTemplate: rendered,
 //	})
 type Client interface {
 	LookupTemplateByName(context.Context, string) (TemplateRef, error)
 	LookupImageByName(context.Context, string) (ImageRef, error)
 	LookupDatastoreByName(context.Context, string) (DatastoreRef, error)
 	LookupNetworksByName(context.Context, []string) ([]NetworkRef, error)
+	CreateImage(context.Context, CreateImageRequest) (ImageRef, error)
+	GetImage(context.Context, int) (ImageInfo, error)
+	DeleteImage(context.Context, int) error
 	InstantiateTemplate(context.Context, InstantiateRequest) (VMRef, error)
 	GetVM(context.Context, int) (VMInfo, error)
 	TerminateVM(context.Context, int, bool) error
@@ -40,16 +43,36 @@ type ImageRef struct {
 	SizeMiB   int
 }
 
+// ImageInfo is the provider-facing image state.
+type ImageInfo struct {
+	ID        int
+	Name      string
+	Datastore string
+	SizeMiB   int
+	State     string
+	Source    string
+}
+
 // DatastoreRef is a resolved datastore reference.
 type DatastoreRef struct {
-	ID   int
-	Name string
+	ID     int
+	Name   string
+	FreeMB int
 }
 
 // NetworkRef is a resolved network reference.
 type NetworkRef struct {
 	ID   int
 	Name string
+}
+
+// CreateImageRequest is the rendered input for importing a Talos image.
+type CreateImageRequest struct {
+	DatastoreID int
+	Name        string
+	SourceURL   string
+	Driver      string
+	Format      string
 }
 
 // InstantiateRequest is the rendered VM instantiate input.

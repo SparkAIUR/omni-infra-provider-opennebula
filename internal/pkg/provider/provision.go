@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap"
 
 	providerconfig "github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/config"
+	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/imagemanager"
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/observability"
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/opennebula"
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/provider/resources"
@@ -24,17 +25,19 @@ import (
 
 // Provisioner orchestrates Omni requests against OpenNebula.
 type Provisioner struct {
-	client  opennebula.Client
-	config  providerconfig.Config
-	metrics *observability.Metrics
+	client       opennebula.Client
+	config       providerconfig.Config
+	metrics      *observability.Metrics
+	imageManager *imagemanager.Manager
 }
 
 // NewProvisioner creates a new OpenNebula provisioner.
 func NewProvisioner(client opennebula.Client, cfg providerconfig.Config, metrics *observability.Metrics) *Provisioner {
 	return &Provisioner{
-		client:  client,
-		config:  cfg,
-		metrics: metrics,
+		client:       client,
+		config:       cfg,
+		metrics:      metrics,
+		imageManager: imagemanager.New(client, cfg, metrics),
 	}
 }
 
@@ -76,6 +79,7 @@ func (p *Provisioner) createSchematic(ctx context.Context, logger *zap.Logger, p
 
 		schematicID, err := pctx.GenerateSchematicID(ctx, logger, provision.WithoutConnectionParams())
 		if err != nil {
+			SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassRetryable))
 			return p.retryError("createSchematic", 10*time.Second, "generate schematic: %w", err)
 		}
 
@@ -93,6 +97,7 @@ func (p *Provisioner) createHostnamePatch(ctx context.Context, _ *zap.Logger, pc
 		patchName := hostname + "-opennebula-hostname"
 
 		if err := pctx.CreateConfigPatch(ctx, patchName, HostnameConfigPatch(hostname)); err != nil {
+			SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassRetryable))
 			return p.retryError("createHostnamePatch", 10*time.Second, "create hostname patch: %w", err)
 		}
 
@@ -121,27 +126,49 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 			return err
 		}
 
-		imageRef, err := p.client.LookupImageByName(ctx, imageName)
+		imageResult, err := p.imageManager.Resolve(ctx, imagemanager.ResolveRequest{
+			ImageName:        imageName,
+			Arch:             "amd64",
+			TalosVersion:     pctx.GetTalosVersion(),
+			SchematicID:      schematicID,
+			Datastore:        data.Datastore,
+			ExistingImageID:  int(pctx.State.TypedSpec().Value.ImageId),
+			ExistingChecksum: pctx.State.TypedSpec().Value.ImageChecksum,
+			ExistingSource:   pctx.State.TypedSpec().Value.ImageSource,
+			ProviderManaged:  pctx.State.TypedSpec().Value.ImageSource != "",
+		})
+		if imageResult.Image.ID != 0 {
+			SetImageID(pctx.State, imageResult.Image.ID)
+			SetImageName(pctx.State, imageResult.Image.Name)
+			SetImageSource(pctx.State, imageResult.SourceURL)
+			SetImageChecksum(pctx.State, imageResult.Checksum)
+		}
 		if err != nil {
 			SetLastError(pctx.State, err.Error())
-			return p.clientError("instantiateVM", "lookup image", err)
+			SetLastRetryClassification(pctx.State, string(opennebula.ClassifyError(err)))
+			SetPhase(pctx.State, "image_importing")
+			return p.clientError("instantiateVM", "resolve image", err)
 		}
+		SetPhase(pctx.State, "image_ready")
 
 		templateRef, err := p.client.LookupTemplateByName(ctx, data.TemplateName)
 		if err != nil {
 			SetLastError(pctx.State, err.Error())
+			SetLastRetryClassification(pctx.State, string(opennebula.ClassifyError(err)))
 			return p.clientError("instantiateVM", "lookup template", err)
 		}
 
 		networks, err := p.client.LookupNetworksByName(ctx, networkNames(data.Networks))
 		if err != nil {
 			SetLastError(pctx.State, err.Error())
+			SetLastRetryClassification(pctx.State, string(opennebula.ClassifyError(err)))
 			return p.clientError("instantiateVM", "lookup networks", err)
 		}
 
 		if data.Datastore != "" {
 			if _, err = p.client.LookupDatastoreByName(ctx, data.Datastore); err != nil {
 				SetLastError(pctx.State, err.Error())
+				SetLastRetryClassification(pctx.State, string(opennebula.ClassifyError(err)))
 				return p.clientError("instantiateVM", "lookup datastore", err)
 			}
 		}
@@ -178,7 +205,7 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 
 		rendered := RenderTemplate(RenderInput{
 			VMName:          hostname,
-			ImageName:       imageRef.Name,
+			ImageName:       imageResult.Image.Name,
 			Datastore:       data.Datastore,
 			Resources:       resolvedResources,
 			Networks:        networks,
@@ -190,7 +217,7 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 
 		stepLogger := provisionLogger(logger, pctx.State, pctx.GetRequestID(),
 			zap.String("template_name", templateRef.Name),
-			zap.String("image_name", imageRef.Name),
+			zap.String("image_name", imageResult.Image.Name),
 			zap.String("datastore", data.Datastore),
 			zap.Strings("network_names", networkNames(data.Networks)),
 		)
@@ -205,18 +232,23 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 		})
 		if err != nil {
 			SetLastError(pctx.State, err.Error())
+			SetLastRetryClassification(pctx.State, string(opennebula.ClassifyError(err)))
 			return p.clientError("instantiateVM", "instantiate vm", err)
 		}
 
 		SetVMID(pctx.State, vmRef.ID)
 		SetTemplateName(pctx.State, templateRef.Name)
 		SetTemplateID(pctx.State, templateRef.ID)
-		SetImageName(pctx.State, imageRef.Name)
+		SetImageID(pctx.State, imageResult.Image.ID)
+		SetImageName(pctx.State, imageResult.Image.Name)
+		SetImageSource(pctx.State, imageResult.SourceURL)
+		SetImageChecksum(pctx.State, imageResult.Checksum)
 		SetDatastore(pctx.State, data.Datastore)
 		SetFlavor(pctx.State, data.Flavor)
 		SetNetworkNames(pctx.State, networkNames(data.Networks))
 		SetPhase(pctx.State, "vm_instantiated")
 		SetLastError(pctx.State, "")
+		SetLastRetryClassification(pctx.State, "")
 		pctx.SetMachineInfraID(fmt.Sprintf("%d", vmRef.ID))
 		provisionLogger(logger, pctx.State, pctx.GetRequestID()).Info("instantiated opennebula vm")
 
@@ -228,21 +260,25 @@ func (p *Provisioner) waitForVM(ctx context.Context, _ *zap.Logger, pctx provisi
 	return p.runProvisionStep("waitForVM", func() error {
 		vmID := GetVMID(pctx.State)
 		if vmID == 0 {
+			SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassRetryable))
 			return p.retryError("waitForVM", 10*time.Second, "vm id is not set yet")
 		}
 
 		vmInfo, err := p.client.GetVM(ctx, vmID)
 		if err != nil {
 			SetLastError(pctx.State, err.Error())
+			SetLastRetryClassification(pctx.State, string(opennebula.ClassifyError(err)))
 			return p.clientError("waitForVM", "get vm", err)
 		}
 
 		if strings.EqualFold(vmInfo.LCMState, "RUNNING") || strings.EqualFold(vmInfo.State, "ACTIVE") {
 			SetPhase(pctx.State, "vm_running")
 			SetLastError(pctx.State, "")
+			SetLastRetryClassification(pctx.State, "")
 			return nil
 		}
 
+		SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassRetryable))
 		return p.retryError("waitForVM", 10*time.Second, "vm %d not running yet (state=%s lcm=%s)", vmID, vmInfo.State, vmInfo.LCMState)
 	})
 }
@@ -261,6 +297,10 @@ func (p *Provisioner) resolveRequest(ctx context.Context, pctx provision.Context
 	resolved, err := ResolveResources(data, p.config)
 	if err != nil {
 		return ProviderData{}, ResolvedResources{}, fmt.Errorf("resolve resources: %w", err)
+	}
+
+	if data.Datastore == "" {
+		data.Datastore = p.config.StoragePolicies.DefaultDatastore
 	}
 
 	if data.Datastore != "" {

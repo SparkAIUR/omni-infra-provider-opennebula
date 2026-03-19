@@ -6,10 +6,11 @@ package specs
 
 import (
 	fmt "fmt"
+	io "io"
+
 	protohelpers "github.com/planetscale/vtprotobuf/protohelpers"
 	proto "google.golang.org/protobuf/proto"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	io "io"
 )
 
 const (
@@ -35,6 +36,11 @@ func (m *MachineSpec) CloneVT() *MachineSpec {
 	r.Flavor = m.Flavor
 	r.Phase = m.Phase
 	r.LastError = m.LastError
+	r.ImageId = m.ImageId
+	r.ImageSource = m.ImageSource
+	r.ImageChecksum = m.ImageChecksum
+	r.LastSuccessfulPhaseAt = m.LastSuccessfulPhaseAt
+	r.LastRetryClassification = m.LastRetryClassification
 	if rhs := m.NetworkNames; rhs != nil {
 		tmpContainer := make([]string, len(rhs))
 		copy(tmpContainer, rhs)
@@ -99,6 +105,21 @@ func (this *MachineSpec) EqualVT(that *MachineSpec) bool {
 	if this.LastError != that.LastError {
 		return false
 	}
+	if this.ImageId != that.ImageId {
+		return false
+	}
+	if this.ImageSource != that.ImageSource {
+		return false
+	}
+	if this.ImageChecksum != that.ImageChecksum {
+		return false
+	}
+	if this.LastSuccessfulPhaseAt != that.LastSuccessfulPhaseAt {
+		return false
+	}
+	if this.LastRetryClassification != that.LastRetryClassification {
+		return false
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -138,6 +159,43 @@ func (m *MachineSpec) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.LastRetryClassification) > 0 {
+		i -= len(m.LastRetryClassification)
+		copy(dAtA[i:], m.LastRetryClassification)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.LastRetryClassification)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x8a
+	}
+	if len(m.LastSuccessfulPhaseAt) > 0 {
+		i -= len(m.LastSuccessfulPhaseAt)
+		copy(dAtA[i:], m.LastSuccessfulPhaseAt)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.LastSuccessfulPhaseAt)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x82
+	}
+	if len(m.ImageChecksum) > 0 {
+		i -= len(m.ImageChecksum)
+		copy(dAtA[i:], m.ImageChecksum)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ImageChecksum)))
+		i--
+		dAtA[i] = 0x7a
+	}
+	if len(m.ImageSource) > 0 {
+		i -= len(m.ImageSource)
+		copy(dAtA[i:], m.ImageSource)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ImageSource)))
+		i--
+		dAtA[i] = 0x72
+	}
+	if m.ImageId != 0 {
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.ImageId))
+		i--
+		dAtA[i] = 0x68
 	}
 	if len(m.LastError) > 0 {
 		i -= len(m.LastError)
@@ -277,6 +335,25 @@ func (m *MachineSpec) SizeVT() (n int) {
 	l = len(m.LastError)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.ImageId != 0 {
+		n += 1 + protohelpers.SizeOfVarint(uint64(m.ImageId))
+	}
+	l = len(m.ImageSource)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.ImageChecksum)
+	if l > 0 {
+		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.LastSuccessfulPhaseAt)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	l = len(m.LastRetryClassification)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -668,6 +745,153 @@ func (m *MachineSpec) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.LastError = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 13:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ImageId", wireType)
+			}
+			m.ImageId = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ImageId |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 14:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ImageSource", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ImageSource = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 15:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ImageChecksum", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ImageChecksum = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 16:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LastSuccessfulPhaseAt", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.LastSuccessfulPhaseAt = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 17:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LastRetryClassification", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.LastRetryClassification = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

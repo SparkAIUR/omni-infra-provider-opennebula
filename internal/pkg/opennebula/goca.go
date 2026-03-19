@@ -87,7 +87,7 @@ func (c *GOCAClient) LookupDatastoreByName(ctx context.Context, name string) (Da
 		return DatastoreRef{}, fmt.Errorf("info datastore %q: %w", name, err)
 	}
 
-	return DatastoreRef{ID: id, Name: datastore.Name}, nil
+	return DatastoreRef{ID: id, Name: datastore.Name, FreeMB: datastore.FreeMB}, nil
 }
 
 // LookupNetworksByName resolves a set of networks by name.
@@ -109,6 +109,87 @@ func (c *GOCAClient) LookupNetworksByName(ctx context.Context, names []string) (
 	}
 
 	return refs, nil
+}
+
+// CreateImage imports an image into an OpenNebula datastore.
+func (c *GOCAClient) CreateImage(ctx context.Context, request CreateImageRequest) (ImageRef, error) {
+	if request.Driver == "" {
+		request.Driver = "qcow2"
+	}
+
+	if request.Format == "" {
+		request.Format = "qcow2"
+	}
+
+	templateBody := strings.Join([]string{
+		fmt.Sprintf("NAME = %q", request.Name),
+		`TYPE = "OS"`,
+		fmt.Sprintf("PATH = %q", request.SourceURL),
+		fmt.Sprintf("DRIVER = %q", request.Driver),
+		fmt.Sprintf("FORMAT = %q", request.Format),
+	}, "\n")
+
+	imageID, err := c.controller.Images().CreateContext(ctx, templateBody, uint(request.DatastoreID))
+	if err != nil {
+		return ImageRef{}, fmt.Errorf("create image %q: %w", request.Name, err)
+	}
+
+	imageInfo, err := c.GetImage(ctx, imageID)
+	if err != nil {
+		return ImageRef{}, err
+	}
+
+	return ImageRef{
+		ID:        imageInfo.ID,
+		Name:      imageInfo.Name,
+		Datastore: imageInfo.Datastore,
+		SizeMiB:   imageInfo.SizeMiB,
+	}, nil
+}
+
+// GetImage fetches the normalized image state.
+func (c *GOCAClient) GetImage(ctx context.Context, imageID int) (ImageInfo, error) {
+	imageInfo, err := c.controller.Image(imageID).InfoContext(ctx, false)
+	if err != nil {
+		return ImageInfo{}, normalizeLookupError("image", fmt.Sprint(imageID), err)
+	}
+
+	state, stateErr := imageInfo.StateString()
+	if stateErr != nil {
+		return ImageInfo{}, fmt.Errorf("state image %d: %w", imageID, stateErr)
+	}
+
+	datastore := ""
+	if imageInfo.DatastoreID != nil {
+		datastore = imageInfo.Datastore
+	}
+
+	return ImageInfo{
+		ID:        imageInfo.ID,
+		Name:      imageInfo.Name,
+		Datastore: datastore,
+		SizeMiB:   imageInfo.Size / 1024,
+		State:     state,
+		Source:    imageInfo.Source,
+	}, nil
+}
+
+// DeleteImage deletes an image from OpenNebula.
+func (c *GOCAClient) DeleteImage(ctx context.Context, imageID int) error {
+	imageController := c.controller.Image(imageID)
+	if _, err := imageController.InfoContext(ctx, false); err != nil {
+		if errors.Is(normalizeLookupError("image", fmt.Sprint(imageID), err), ErrNotFound) {
+			return nil
+		}
+
+		return fmt.Errorf("get image %d: %w", imageID, err)
+	}
+
+	if err := imageController.DeleteContext(ctx); err != nil {
+		return fmt.Errorf("delete image %d: %w", imageID, err)
+	}
+
+	return nil
 }
 
 // InstantiateTemplate instantiates a VM from a template.
