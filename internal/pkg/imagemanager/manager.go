@@ -224,7 +224,7 @@ func (m *Manager) evaluate(imageInfo opennebula.ImageInfo, request ResolveReques
 	}
 
 	switch strings.ToUpper(imageInfo.State) {
-	case "READY":
+	case "READY", "USED", "USED_PERS":
 		return result, nil
 	case "ERROR", "DELETE":
 		return Result{}, fmt.Errorf("%w: image %q entered terminal state %s", opennebula.ErrTerminal, imageInfo.Name, imageInfo.State)

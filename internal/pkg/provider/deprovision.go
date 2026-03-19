@@ -36,12 +36,107 @@ func (p *Provisioner) deprovision(ctx context.Context, logger *zap.Logger, machi
 	deleteHard := p.resolveDeleteMode(machine, machineRequest)
 
 	SetPhase(machine, "delete_requested")
-	if err := p.client.TerminateVM(ctx, vmID, deleteHard); err != nil {
+	deleted, err := p.ensureVMDeleted(ctx, logger, machine, vmID, deleteHard)
+	if err != nil {
+		return err
+	}
+
+	if !deleted {
+		return provision.NewRetryErrorf(10*time.Second, "wait for vm %d deletion", vmID)
+	}
+
+	clearProvisionedState(machine)
+	SetPhase(machine, "delete_complete")
+	provisionLogger(logger, machine, machine.Metadata().ID()).Info("terminated opennebula vm", zap.Int("vm_id", vmID))
+
+	return nil
+}
+
+func (p *Provisioner) ensureVMDeleted(ctx context.Context, logger *zap.Logger, machine *resources.Machine, vmID int, deleteHard bool) (bool, error) {
+	info, err := p.client.GetVM(ctx, vmID)
+	if err != nil {
 		SetLastRetryClassification(machine, string(opennebula.ClassifyError(err)))
 		if opennebula.IsNotFoundError(err) {
 			provisionLogger(logger, machine, machine.Metadata().ID()).Info("vm already deleted", zap.Int("vm_id", vmID))
-			clearProvisionedState(machine)
-			SetPhase(machine, "delete_complete")
+			return true, nil
+		}
+
+		class := opennebula.ClassifyError(err)
+		if opennebula.IsRetryableClass(class) {
+			return false, provision.NewRetryErrorf(10*time.Second, "get vm %d: %w", vmID, err)
+		}
+
+		return false, err
+	}
+
+	if vmIsTerminallyDeleted(info) {
+		return true, nil
+	}
+
+	if vmRequiresForceDelete(info, deleteHard) {
+		if err := p.forceDeleteVM(ctx, machine, vmID); err != nil {
+			return false, err
+		}
+	} else {
+		if err := p.terminateVM(ctx, machine, vmID, deleteHard); err != nil {
+			return false, err
+		}
+	}
+
+	info, err = p.client.GetVM(ctx, vmID)
+	if err != nil {
+		SetLastRetryClassification(machine, string(opennebula.ClassifyError(err)))
+		if opennebula.IsNotFoundError(err) {
+			return true, nil
+		}
+
+		class := opennebula.ClassifyError(err)
+		if opennebula.IsRetryableClass(class) {
+			return false, provision.NewRetryErrorf(10*time.Second, "confirm vm %d deletion: %w", vmID, err)
+		}
+
+		return false, err
+	}
+
+	if vmIsTerminallyDeleted(info) {
+		return true, nil
+	}
+
+	if vmRequiresForceDelete(info, deleteHard) {
+		if err := p.forceDeleteVM(ctx, machine, vmID); err != nil {
+			return false, err
+		}
+
+		info, err = p.client.GetVM(ctx, vmID)
+		if err != nil {
+			SetLastRetryClassification(machine, string(opennebula.ClassifyError(err)))
+			if opennebula.IsNotFoundError(err) {
+				return true, nil
+			}
+
+			class := opennebula.ClassifyError(err)
+			if opennebula.IsRetryableClass(class) {
+				return false, provision.NewRetryErrorf(10*time.Second, "confirm forced vm %d deletion: %w", vmID, err)
+			}
+
+			return false, err
+		}
+	}
+
+	provisionLogger(logger, machine, machine.Metadata().ID()).Info(
+		"vm deletion still in progress",
+		zap.Int("vm_id", vmID),
+		zap.String("vm_state", info.State),
+		zap.String("vm_lcm_state", info.LCMState),
+	)
+
+	return false, nil
+}
+
+func (p *Provisioner) terminateVM(ctx context.Context, machine *resources.Machine, vmID int, deleteHard bool) error {
+	if err := p.client.TerminateVM(ctx, vmID, deleteHard); err != nil {
+		SetLastRetryClassification(machine, string(opennebula.ClassifyError(err)))
+		if opennebula.IsNotFoundError(err) {
 			return nil
 		}
 
@@ -53,11 +148,46 @@ func (p *Provisioner) deprovision(ctx context.Context, logger *zap.Logger, machi
 		return err
 	}
 
-	clearProvisionedState(machine)
-	SetPhase(machine, "delete_complete")
-	provisionLogger(logger, machine, machine.Metadata().ID()).Info("terminated opennebula vm", zap.Int("vm_id", vmID))
+	return nil
+}
+
+func (p *Provisioner) forceDeleteVM(ctx context.Context, machine *resources.Machine, vmID int) error {
+	if err := p.client.ForceDeleteVM(ctx, vmID); err != nil {
+		SetLastRetryClassification(machine, string(opennebula.ClassifyError(err)))
+		if opennebula.IsNotFoundError(err) {
+			return nil
+		}
+
+		class := opennebula.ClassifyError(err)
+		if opennebula.IsRetryableClass(class) {
+			return provision.NewRetryErrorf(10*time.Second, "force delete vm %d: %w", vmID, err)
+		}
+
+		return err
+	}
 
 	return nil
+}
+
+func vmRequiresForceDelete(info opennebula.VMInfo, deleteHard bool) bool {
+	if !deleteHard {
+		return false
+	}
+
+	switch normalizeState(info.LCMState) {
+	case "SHUTDOWN", "SHUTDOWN_POWEROFF", "SHUTDOWN_UNDEPLOY", "EPILOG", "EPILOG_STOP", "EPILOG_UNDEPLOY", "CLEANUP_DELETE":
+		return true
+	default:
+		return false
+	}
+}
+
+func vmIsTerminallyDeleted(info opennebula.VMInfo) bool {
+	return normalizeState(info.State) == "DONE"
+}
+
+func normalizeState(value string) string {
+	return strings.ToUpper(strings.TrimSpace(value))
 }
 
 func (p *Provisioner) resolveDeleteMode(machine *resources.Machine, machineRequest *infrares.MachineRequest) bool {

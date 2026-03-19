@@ -27,6 +27,7 @@ type Client interface {
 	InstantiateTemplate(context.Context, InstantiateRequest) (VMRef, error)
 	GetVM(context.Context, int) (VMInfo, error)
 	TerminateVM(context.Context, int, bool) error
+	ForceDeleteVM(context.Context, int) error
 }
 
 // TemplateRef is a resolved VM template reference.

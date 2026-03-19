@@ -93,6 +93,13 @@ func (c *instrumentedClient) TerminateVM(ctx context.Context, vmID int, hard boo
 	return err
 }
 
+func (c *instrumentedClient) ForceDeleteVM(ctx context.Context, vmID int) error {
+	start := time.Now()
+	err := c.inner.ForceDeleteVM(ctx, vmID)
+	c.metrics.ObserveOpenNebulaRequest("force_delete_vm", string(ClassifyError(err)), time.Since(start))
+	return err
+}
+
 func observe[T any](client *instrumentedClient, operation string, call func() (T, error)) (T, error) {
 	start := time.Now()
 	value, err := call()

@@ -14,27 +14,31 @@ import (
 
 // Client is a simple fake adapter used by tests.
 type Client struct {
-	mu                sync.Mutex
-	Templates         map[string]parent.TemplateRef
-	Images            map[string]parent.ImageRef
-	ImageInfoByID     map[int]parent.ImageInfo
-	Datastores        map[string]parent.DatastoreRef
-	Networks          map[string]parent.NetworkRef
-	VMs               map[int]parent.VMInfo
-	InstantiateErr    error
-	LookupImageErr    error
-	LookupVMErr       error
-	TerminateErr      error
-	CreateImageErr    error
-	GetImageErr       error
-	DeleteImageErr    error
-	LastTerminateID   int
-	LastTerminateHard bool
-	LastDeleteImageID int
-	NextVMID          int
-	NextImageID       int
-	LastInstantiate   parent.InstantiateRequest
-	LastCreateImage   parent.CreateImageRequest
+	mu                  sync.Mutex
+	Templates           map[string]parent.TemplateRef
+	Images              map[string]parent.ImageRef
+	ImageInfoByID       map[int]parent.ImageInfo
+	Datastores          map[string]parent.DatastoreRef
+	Networks            map[string]parent.NetworkRef
+	VMs                 map[int]parent.VMInfo
+	InstantiateErr      error
+	LookupImageErr      error
+	LookupVMErr         error
+	TerminateErr        error
+	ForceDeleteErr      error
+	CreateImageErr      error
+	GetImageErr         error
+	DeleteImageErr      error
+	LastTerminateID     int
+	LastTerminateHard   bool
+	LastForceDeleteID   int
+	LastDeleteImageID   int
+	NextVMID            int
+	NextImageID         int
+	LastInstantiate     parent.InstantiateRequest
+	LastCreateImage     parent.CreateImageRequest
+	TerminateLeavesVM   bool
+	ForceDeleteLeavesVM bool
 }
 
 // New creates a fake OpenNebula client.
@@ -257,6 +261,36 @@ func (c *Client) TerminateVM(_ context.Context, vmID int, hard bool) error {
 
 	c.LastTerminateID = vmID
 	c.LastTerminateHard = hard
+	if c.TerminateLeavesVM {
+		vm := c.VMs[vmID]
+		vm.State = "ACTIVE"
+		vm.LCMState = "SHUTDOWN"
+		c.VMs[vmID] = vm
+		return nil
+	}
+
+	delete(c.VMs, vmID)
+
+	return nil
+}
+
+func (c *Client) ForceDeleteVM(_ context.Context, vmID int) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.ForceDeleteErr != nil {
+		return c.ForceDeleteErr
+	}
+
+	if _, ok := c.VMs[vmID]; !ok {
+		return parent.ErrNotFound
+	}
+
+	c.LastForceDeleteID = vmID
+	if c.ForceDeleteLeavesVM {
+		return nil
+	}
+
 	delete(c.VMs, vmID)
 
 	return nil

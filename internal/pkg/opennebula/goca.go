@@ -259,6 +259,24 @@ func (c *GOCAClient) TerminateVM(ctx context.Context, vmID int, hard bool) error
 	return nil
 }
 
+// ForceDeleteVM force-removes an OpenNebula VM after it has reached a terminal or stuck state.
+func (c *GOCAClient) ForceDeleteVM(ctx context.Context, vmID int) error {
+	vmController := c.controller.VM(vmID)
+	if _, err := vmController.InfoContext(ctx, false); err != nil {
+		if errors.Is(normalizeLookupError("vm", fmt.Sprint(vmID), err), ErrNotFound) {
+			return nil
+		}
+
+		return fmt.Errorf("get vm %d: %w", vmID, err)
+	}
+
+	if err := vmController.RecoverDeleteContext(ctx); err != nil {
+		return fmt.Errorf("force delete vm %d: %w", vmID, err)
+	}
+
+	return nil
+}
+
 func normalizeLookupError(kind, name string, err error) error {
 	if err == nil {
 		return nil

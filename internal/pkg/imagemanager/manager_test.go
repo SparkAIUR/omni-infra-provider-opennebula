@@ -42,6 +42,31 @@ func TestResolveUsesExistingImage(t *testing.T) {
 	}
 }
 
+func TestResolveUsesInUseImage(t *testing.T) {
+	t.Parallel()
+
+	client := opennebulafake.New()
+	client.Images["talos-image"] = opennebula.ImageRef{ID: 12, Name: "talos-image", Datastore: "fast-ssd"}
+	client.ImageInfoByID[12] = opennebula.ImageInfo{
+		ID:        12,
+		Name:      "talos-image",
+		Datastore: "fast-ssd",
+		State:     "USED",
+		Source:    "https://example.invalid/disk.qcow2",
+	}
+
+	manager := New(client, imageConfig("unused", "unused"), nil)
+
+	result, err := manager.Resolve(t.Context(), ResolveRequest{ImageName: "talos-image"})
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+
+	if result.Image.ID != 12 || result.Image.Name != "talos-image" {
+		t.Fatalf("unexpected image result: %+v", result)
+	}
+}
+
 func TestResolveImportsMissingImageWithChecksumVerification(t *testing.T) {
 	t.Parallel()
 

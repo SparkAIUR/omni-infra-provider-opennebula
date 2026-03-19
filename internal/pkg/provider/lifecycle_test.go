@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cosi-project/runtime/pkg/controller"
 	"github.com/siderolabs/image-factory/pkg/schematic"
 	"github.com/siderolabs/omni/client/pkg/infra/provision"
 	infrares "github.com/siderolabs/omni/client/pkg/omni/resources/infra"
@@ -262,6 +264,103 @@ func TestDeprovisionHandlesNotFoundAndHardDelete(t *testing.T) {
 
 	if !client.LastTerminateHard || client.LastTerminateID != 88 {
 		t.Fatalf("expected hard delete for vm 88, got hard=%v id=%d", client.LastTerminateHard, client.LastTerminateID)
+	}
+}
+
+func TestDeprovisionForceDeletesLingeringShutdownVM(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig()
+	cfg.Features.HardDelete = true
+
+	client := opennebulafake.New()
+	client.VMs[91] = opennebula.VMInfo{ID: 91, Name: "vm-91", State: "ACTIVE", LCMState: "RUNNING"}
+	client.TerminateLeavesVM = true
+
+	provisioner := NewProvisioner(client, cfg, nil)
+	state := resources.NewMachine("default", "req-1")
+	SetVMID(state, 91)
+	SetTemplateID(state, 11)
+	state.TypedSpec().Value.SchematicId = "schem-123"
+
+	if err := provisioner.Deprovision(context.Background(), zap.NewNop(), state, infrares.NewMachineRequest("req-1")); err != nil {
+		t.Fatalf("Deprovision() lingering shutdown path error = %v", err)
+	}
+
+	if client.LastTerminateID != 91 || !client.LastTerminateHard {
+		t.Fatalf("expected terminate hard for vm 91, got hard=%v id=%d", client.LastTerminateHard, client.LastTerminateID)
+	}
+
+	if client.LastForceDeleteID != 91 {
+		t.Fatalf("expected force delete for vm 91, got id=%d", client.LastForceDeleteID)
+	}
+
+	if GetVMID(state) != 0 || state.TypedSpec().Value.SchematicId != "" {
+		t.Fatalf("expected state to be cleared after forced delete, got %+v", state.TypedSpec().Value)
+	}
+}
+
+func TestDeprovisionKeepsStateWhileLingeringVMStillExists(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig()
+	cfg.Features.HardDelete = true
+
+	client := opennebulafake.New()
+	client.VMs[92] = opennebula.VMInfo{ID: 92, Name: "vm-92", State: "ACTIVE", LCMState: "RUNNING"}
+	client.TerminateLeavesVM = true
+	client.ForceDeleteLeavesVM = true
+
+	provisioner := NewProvisioner(client, cfg, nil)
+	state := resources.NewMachine("default", "req-2")
+	SetVMID(state, 92)
+	SetTemplateID(state, 11)
+	state.TypedSpec().Value.SchematicId = "schem-456"
+
+	err := provisioner.Deprovision(context.Background(), zap.NewNop(), state, infrares.NewMachineRequest("req-2"))
+	if err == nil {
+		t.Fatal("expected retry while vm still exists")
+	}
+
+	var retryErr *controller.RequeueError
+	if !errors.As(err, &retryErr) {
+		t.Fatalf("expected retry error, got %T: %v", err, err)
+	}
+
+	if GetVMID(state) != 92 || state.TypedSpec().Value.SchematicId != "schem-456" {
+		t.Fatalf("expected state to be retained while delete is in progress, got %+v", state.TypedSpec().Value)
+	}
+}
+
+func TestDeprovisionForceDeletesDoneVMLingeringInInventory(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig()
+	cfg.Features.HardDelete = true
+
+	client := opennebulafake.New()
+	client.VMs[93] = opennebula.VMInfo{ID: 93, Name: "vm-93", State: "DONE", LCMState: "LCM_INIT"}
+
+	provisioner := NewProvisioner(client, cfg, nil)
+	state := resources.NewMachine("default", "req-3")
+	SetVMID(state, 93)
+	SetTemplateID(state, 11)
+	state.TypedSpec().Value.SchematicId = "schem-789"
+
+	if err := provisioner.Deprovision(context.Background(), zap.NewNop(), state, infrares.NewMachineRequest("req-3")); err != nil {
+		t.Fatalf("Deprovision() lingering done vm path error = %v", err)
+	}
+
+	if client.LastTerminateID != 0 {
+		t.Fatalf("expected terminate to be skipped for done vm, got id=%d", client.LastTerminateID)
+	}
+
+	if client.LastForceDeleteID != 0 {
+		t.Fatalf("expected force delete to be skipped for done vm, got id=%d", client.LastForceDeleteID)
+	}
+
+	if GetVMID(state) != 0 || state.TypedSpec().Value.SchematicId != "" {
+		t.Fatalf("expected state to be cleared after force deleting done vm, got %+v", state.TypedSpec().Value)
 	}
 }
 
