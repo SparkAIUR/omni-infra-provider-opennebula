@@ -13,8 +13,12 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
+
+	"github.com/klauspost/compress/zstd"
 
 	providerconfig "github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/config"
 	"github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/observability"
@@ -143,20 +147,15 @@ func (m *Manager) Resolve(ctx context.Context, request ResolveRequest) (Result, 
 		return Result{}, err
 	}
 
-	checksum, err := m.resolveChecksum(ctx, sourceURL, request)
+	importRequest, checksum, err := m.prepareImport(ctx, sourceURL, request, datastoreRef.ID)
 	if err != nil {
-		m.observe("verify", "error")
 		return Result{}, err
 	}
 	if checksum != "" {
 		m.observe("verify", "success")
 	}
 
-	imageRef, err = m.client.CreateImage(ctx, opennebula.CreateImageRequest{
-		DatastoreID: datastoreRef.ID,
-		Name:        request.ImageName,
-		SourceURL:   sourceURL,
-	})
+	imageRef, err = m.client.CreateImage(ctx, importRequest)
 	if err != nil {
 		m.observe("import", "error")
 		return Result{}, err
@@ -174,6 +173,41 @@ func (m *Manager) Resolve(ctx context.Context, request ResolveRequest) (Result, 
 	request.ExistingSource = sourceURL
 
 	return m.evaluate(imageInfo, request, true)
+}
+
+func (m *Manager) prepareImport(
+	ctx context.Context,
+	sourceURL string,
+	request ResolveRequest,
+	datastoreID int,
+) (opennebula.CreateImageRequest, string, error) {
+	if !needsLocalStaging(sourceURL) {
+		checksum, err := m.resolveChecksum(ctx, sourceURL, request)
+		if err != nil {
+			m.observe("verify", "error")
+			return opennebula.CreateImageRequest{}, "", err
+		}
+
+		return opennebula.CreateImageRequest{
+			DatastoreID: datastoreID,
+			Name:        request.ImageName,
+			SourceURL:   sourceURL,
+		}, checksum, nil
+	}
+
+	stagedPath, checksum, err := m.stageCompressedArtifact(ctx, sourceURL, request)
+	if err != nil {
+		m.observe("verify", "error")
+		return opennebula.CreateImageRequest{}, "", err
+	}
+
+	return opennebula.CreateImageRequest{
+		DatastoreID: datastoreID,
+		Name:        request.ImageName,
+		SourcePath:  stagedPath,
+		Driver:      "raw",
+		Format:      "raw",
+	}, checksum, nil
 }
 
 func (m *Manager) evaluate(imageInfo opennebula.ImageInfo, request ResolveRequest, providerManaged bool) (Result, error) {
@@ -197,6 +231,36 @@ func (m *Manager) evaluate(imageInfo opennebula.ImageInfo, request ResolveReques
 	default:
 		return result, fmt.Errorf("%w: image %q not ready yet (state=%s)", opennebula.ErrRetryable, imageInfo.Name, imageInfo.State)
 	}
+}
+
+func (m *Manager) stageCompressedArtifact(ctx context.Context, sourceURL string, request ResolveRequest) (string, string, error) {
+	if err := os.MkdirAll(m.config.ImageManagement.StagingDir, 0o755); err != nil {
+		return "", "", fmt.Errorf("%w: create staging dir: %w", opennebula.ErrTerminal, err)
+	}
+
+	stagedCompressedPath := filepath.Join(
+		m.config.ImageManagement.StagingDir,
+		fmt.Sprintf("%s.raw.zst", sanitizeName(request.ImageName)),
+	)
+	stagedRawPath := strings.TrimSuffix(stagedCompressedPath, ".zst")
+
+	if err := m.downloadSource(ctx, sourceURL, stagedCompressedPath); err != nil {
+		return "", "", err
+	}
+	defer os.Remove(stagedCompressedPath) //nolint:errcheck
+
+	checksum, err := m.validateDownloadedChecksum(ctx, sourceURL, stagedCompressedPath, request)
+	if err != nil {
+		_ = os.Remove(stagedRawPath)
+		return "", "", err
+	}
+
+	if err := decompressZstdFile(stagedCompressedPath, stagedRawPath); err != nil {
+		_ = os.Remove(stagedRawPath)
+		return "", "", fmt.Errorf("%w: decompress %q: %w", opennebula.ErrTerminal, sourceURL, err)
+	}
+
+	return stagedRawPath, checksum, nil
 }
 
 func (m *Manager) resolveChecksum(ctx context.Context, sourceURL string, request ResolveRequest) (string, error) {
@@ -229,6 +293,45 @@ func (m *Manager) resolveChecksum(ctx context.Context, sourceURL string, request
 	actual, err := m.hashSource(ctx, sourceURL)
 	if err != nil {
 		return "", err
+	}
+
+	if !strings.EqualFold(expected, actual) {
+		return "", fmt.Errorf("%w: checksum mismatch for %q", opennebula.ErrTerminal, sourceURL)
+	}
+
+	return expected, nil
+}
+
+func (m *Manager) validateDownloadedChecksum(ctx context.Context, sourceURL, localPath string, request ResolveRequest) (string, error) {
+	if request.ExistingChecksum != "" {
+		return request.ExistingChecksum, nil
+	}
+
+	if !m.config.ImageManagement.RequireChecksum && strings.TrimSpace(m.config.ImageManagement.ChecksumURLTemplate) == "" {
+		return "", nil
+	}
+
+	if strings.TrimSpace(m.config.ImageManagement.ChecksumURLTemplate) == "" {
+		return "", fmt.Errorf("%w: imageManagement.checksumURLTemplate is required when requireChecksum is enabled", opennebula.ErrPolicy)
+	}
+
+	checksumURL, err := m.renderURL(m.config.ImageManagement.ChecksumURLTemplate, request)
+	if err != nil {
+		return "", err
+	}
+
+	expected, err := m.fetchChecksum(ctx, checksumURL)
+	if err != nil {
+		return "", err
+	}
+
+	if !m.config.ImageManagement.RequireChecksum {
+		return expected, nil
+	}
+
+	actual, err := hashFile(localPath)
+	if err != nil {
+		return "", fmt.Errorf("%w: hash staged image %q: %w", opennebula.ErrTerminal, localPath, err)
 	}
 
 	if !strings.EqualFold(expected, actual) {
@@ -307,6 +410,106 @@ func (m *Manager) hashSource(ctx context.Context, sourceURL string) (string, err
 	}
 
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+func (m *Manager) downloadSource(ctx context.Context, sourceURL, destination string) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
+	if err != nil {
+		return fmt.Errorf("%w: create source request: %w", opennebula.ErrTerminal, err)
+	}
+
+	response, err := m.httpClient.Do(request)
+	if err != nil {
+		return classifyHTTPError("download source image", err)
+	}
+	defer response.Body.Close() //nolint:errcheck
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return classifyHTTPStatus("download source image", response.StatusCode)
+	}
+
+	file, err := os.Create(destination)
+	if err != nil {
+		return fmt.Errorf("%w: create staged image %q: %w", opennebula.ErrTerminal, destination, err)
+	}
+	defer file.Close() //nolint:errcheck
+
+	if _, err := io.Copy(file, response.Body); err != nil {
+		return classifyHTTPError("stage source image", err)
+	}
+
+	return nil
+}
+
+func hashFile(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close() //nolint:errcheck
+
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+func decompressZstdFile(sourcePath, destinationPath string) error {
+	source, err := os.Open(sourcePath)
+	if err != nil {
+		return err
+	}
+	defer source.Close() //nolint:errcheck
+
+	destination, err := os.Create(destinationPath)
+	if err != nil {
+		return err
+	}
+
+	decoder, err := zstd.NewReader(source)
+	if err != nil {
+		destination.Close() //nolint:errcheck
+		return err
+	}
+	defer decoder.Close()
+
+	if _, err := io.Copy(destination, decoder); err != nil {
+		destination.Close() //nolint:errcheck
+		return err
+	}
+
+	return destination.Close()
+}
+
+func needsLocalStaging(sourceURL string) bool {
+	lower := strings.ToLower(strings.TrimSpace(sourceURL))
+	return strings.HasSuffix(lower, ".raw.zst") || strings.HasSuffix(lower, ".zst")
+}
+
+func sanitizeName(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.ReplaceAll(value, string(os.PathSeparator), "-")
+	value = strings.ReplaceAll(value, " ", "-")
+	value = strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z':
+			return r
+		case r >= '0' && r <= '9':
+			return r
+		case r == '.' || r == '-' || r == '_':
+			return r
+		default:
+			return '-'
+		}
+	}, value)
+	value = strings.Trim(value, "-")
+	if value == "" {
+		return "image"
+	}
+
+	return value
 }
 
 func (m *Manager) observe(action, outcome string) {

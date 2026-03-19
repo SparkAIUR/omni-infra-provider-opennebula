@@ -1,12 +1,10 @@
 package provider
 
 import (
-	"encoding/base64"
 	"strings"
 	"testing"
 
 	providerconfig "github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/config"
-	"github.com/siderolabs/omni/client/pkg/infra/provision"
 )
 
 func TestCanonicalVMName(t *testing.T) {
@@ -242,26 +240,8 @@ func TestResolveResources(t *testing.T) {
 	}
 }
 
-func TestBootstrapPayloadAndHostnamePatch(t *testing.T) {
+func TestHostnamePatch(t *testing.T) {
 	t.Parallel()
-
-	payload := BootstrapPayload(provision.ConnectionParams{
-		JoinConfig: "cluster:\n  id: test",
-	}, "worker-01")
-
-	decoded, err := base64.StdEncoding.DecodeString(payload)
-	if err != nil {
-		t.Fatalf("DecodeString() error = %v", err)
-	}
-
-	decodedString := string(decoded)
-	if !strings.Contains(decodedString, "cluster:\n  id: test") {
-		t.Fatalf("expected join config in payload, got %q", decodedString)
-	}
-
-	if !strings.Contains(decodedString, "hostname: worker-01") {
-		t.Fatalf("expected hostname in payload, got %q", decodedString)
-	}
 
 	patch := string(HostnameConfigPatch("worker-01"))
 	if !strings.Contains(patch, "hostname: worker-01") {

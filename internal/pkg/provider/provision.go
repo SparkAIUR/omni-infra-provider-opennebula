@@ -77,7 +77,7 @@ func (p *Provisioner) createSchematic(ctx context.Context, logger *zap.Logger, p
 			return nil
 		}
 
-		schematicID, err := pctx.GenerateSchematicID(ctx, logger, provision.WithoutConnectionParams())
+		schematicID, err := pctx.GenerateSchematicID(ctx, logger)
 		if err != nil {
 			SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassRetryable))
 			return p.retryError("createSchematic", 10*time.Second, "generate schematic: %w", err)
@@ -176,10 +176,8 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 		}
 
 		hostname := pctx.State.TypedSpec().Value.VmName
-		bootstrap := BootstrapPayload(pctx.ConnectionParams, hostname)
 		contextKV := map[string]string{
-			"USER_DATA":          bootstrap,
-			"USER_DATA_ENCODING": "base64",
+			"HOSTNAME": hostname,
 		}
 		if data.NetworkContextMode == "manual" {
 			contextKV["NETWORK"] = "NO"

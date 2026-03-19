@@ -121,10 +121,15 @@ func (c *GOCAClient) CreateImage(ctx context.Context, request CreateImageRequest
 		request.Format = "qcow2"
 	}
 
+	source := request.SourceURL
+	if strings.TrimSpace(request.SourcePath) != "" {
+		source = request.SourcePath
+	}
+
 	templateBody := strings.Join([]string{
 		fmt.Sprintf("NAME = %q", request.Name),
 		`TYPE = "OS"`,
-		fmt.Sprintf("PATH = %q", request.SourceURL),
+		fmt.Sprintf("PATH = %q", source),
 		fmt.Sprintf("DRIVER = %q", request.Driver),
 		fmt.Sprintf("FORMAT = %q", request.Format),
 	}, "\n")

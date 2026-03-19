@@ -141,6 +141,9 @@ func (c *Client) CreateImage(_ context.Context, request parent.CreateImageReques
 		State:     "READY",
 		Source:    request.SourceURL,
 	}
+	if request.SourcePath != "" {
+		info.Source = request.SourcePath
+	}
 	c.Images[request.Name] = ref
 	c.ImageInfoByID[imageID] = info
 

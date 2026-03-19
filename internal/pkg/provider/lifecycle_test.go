@@ -70,8 +70,10 @@ networks:
 		t.Fatalf("expected template id 11, got %d", state.TypedSpec().Value.TemplateId)
 	}
 
-	if got := client.LastInstantiate.ExtraTemplate; !strings.Contains(got, "USER_DATA_ENCODING = \"base64\"") {
-		t.Fatalf("expected rendered USER_DATA_ENCODING, got %q", got)
+	if got := client.LastInstantiate.ExtraTemplate; strings.Contains(got, "USER_DATA") {
+		t.Fatalf("expected OpenNebula context without USER_DATA, got %q", got)
+	} else if !strings.Contains(got, "HOSTNAME = \"request-01\"") {
+		t.Fatalf("expected rendered HOSTNAME context, got %q", got)
 	}
 
 	if got, ok := pctx.MachineRequestStatus.Metadata().Labels().Get(omnires.LabelMachineInfraID); !ok || got == "" {

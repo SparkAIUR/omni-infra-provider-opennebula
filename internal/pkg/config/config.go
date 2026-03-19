@@ -100,6 +100,7 @@ type ImageManagementConfig struct {
 	RequireChecksum     bool          `yaml:"requireChecksum"`
 	ArtifactURLTemplate string        `yaml:"artifactURLTemplate,omitempty"`
 	ChecksumURLTemplate string        `yaml:"checksumURLTemplate,omitempty"`
+	StagingDir          string        `yaml:"stagingDir,omitempty"`
 	RetainGenerations   int           `yaml:"retainGenerations,omitempty"`
 	PollInterval        time.Duration `yaml:"pollInterval,omitempty"`
 	ImportTimeout       time.Duration `yaml:"importTimeout,omitempty"`
@@ -218,6 +219,10 @@ func (cfg *Config) applyDefaults() {
 		cfg.ImageManagement.ImportTimeout = 20 * time.Minute
 	}
 
+	if cfg.ImageManagement.StagingDir == "" {
+		cfg.ImageManagement.StagingDir = "/var/tmp/omni-infra-provider-opennebula/images"
+	}
+
 	if cfg.Observability.ListenAddress == "" {
 		cfg.Observability.ListenAddress = ":9977"
 	}
@@ -323,6 +328,10 @@ func (cfg Config) Validate() error {
 
 	if cfg.ImageManagement.PollInterval <= 0 || cfg.ImageManagement.ImportTimeout <= 0 {
 		return errors.New("imageManagement pollInterval and importTimeout must be greater than zero")
+	}
+
+	if strings.TrimSpace(cfg.ImageManagement.StagingDir) == "" {
+		return errors.New("imageManagement.stagingDir is required")
 	}
 
 	if cfg.StoragePolicies.DefaultDatastore != "" && !cfg.AllowedDatastore(cfg.StoragePolicies.DefaultDatastore) {

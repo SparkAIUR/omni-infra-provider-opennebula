@@ -70,6 +70,7 @@ type NetworkRef struct {
 type CreateImageRequest struct {
 	DatastoreID int
 	Name        string
+	SourcePath  string
 	SourceURL   string
 	Driver      string
 	Format      string

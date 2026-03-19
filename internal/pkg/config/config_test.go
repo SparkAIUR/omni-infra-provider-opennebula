@@ -51,6 +51,10 @@ flavors:
 		t.Fatalf("expected image poll interval 5s, got %s", cfg.ImageManagement.PollInterval)
 	}
 
+	if cfg.ImageManagement.StagingDir != "/var/tmp/omni-infra-provider-opennebula/images" {
+		t.Fatalf("expected default staging dir, got %q", cfg.ImageManagement.StagingDir)
+	}
+
 	if cfg.Observability.ListenAddress != ":9977" {
 		t.Fatalf("expected default listen address :9977, got %q", cfg.Observability.ListenAddress)
 	}
