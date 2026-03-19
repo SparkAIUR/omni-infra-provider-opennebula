@@ -32,8 +32,14 @@ flavor: small
 networks:
   - name: prod-lan
 `)
-	machineRequest.Metadata().Labels().Set(omnires.LabelCluster, "HPLSVC")
-	machineRequest.Metadata().Labels().Set(omnires.LabelControlPlaneRole, "")
+	machineSet := omnires.NewMachineSet("hplsvc-control-planes")
+	machineSet.Metadata().Labels().Set(omnires.LabelCluster, "HPLSVC")
+	machineSet.Metadata().Labels().Set(omnires.LabelControlPlaneRole, "")
+	if err := state.Create(ctx, machineSet); err != nil {
+		t.Fatalf("create machine set: %v", err)
+	}
+
+	machineRequest.Metadata().Labels().Set(omnires.LabelMachineRequestSet, machineSet.Metadata().ID())
 	if err := state.Create(ctx, machineRequest); err != nil {
 		t.Fatalf("create machine request: %v", err)
 	}
@@ -66,6 +72,13 @@ func TestAssignMachineUUIDClusterRoleSequenceWorkerGapReuseAcrossMachineSets(t *
 	makeWorker := func(id, machineSet string) (*infrares.MachineRequest, *resources.Machine, provision.Context[*resources.Machine]) {
 		t.Helper()
 
+		set := omnires.NewMachineSet(machineSet)
+		set.Metadata().Labels().Set(omnires.LabelCluster, "HPLSVC")
+		set.Metadata().Labels().Set(omnires.LabelWorkerRole, "")
+		if err := state.Create(ctx, set); err != nil && !runtimestate.IsConflictError(err) {
+			t.Fatalf("create machine set %q: %v", machineSet, err)
+		}
+
 		machineRequest := infrares.NewMachineRequest(id)
 		machineRequest.TypedSpec().Value.ProviderData = `
 schemaVersion: v1alpha2
@@ -74,9 +87,7 @@ networks:
   - name: prod-lan
 `
 		machineRequest.TypedSpec().Value.TalosVersion = "v1.9.0"
-		machineRequest.Metadata().Labels().Set(omnires.LabelCluster, "HPLSVC")
-		machineRequest.Metadata().Labels().Set(omnires.LabelWorkerRole, "")
-		machineRequest.Metadata().Labels().Set(omnires.LabelMachineSet, machineSet)
+		machineRequest.Metadata().Labels().Set(omnires.LabelMachineRequestSet, machineSet)
 		if err := state.Create(ctx, machineRequest); err != nil {
 			t.Fatalf("create machine request %q: %v", id, err)
 		}
@@ -124,6 +135,83 @@ networks:
 
 	if request4.Metadata().ID() == request2.Metadata().ID() {
 		t.Fatal("expected new machine request id for reused worker slot")
+	}
+}
+
+func TestResolveClusterRoleFallsBackToMachineSet(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	state := newAllocatorTestState(ctx, t)
+	provisioner := NewProvisioner(opennebulafake.New(), testConfig(), nil, state)
+
+	machineSet := omnires.NewMachineSet("hplsvc-workers-a")
+	machineSet.Metadata().Labels().Set(omnires.LabelCluster, "HPLSVC")
+	machineSet.Metadata().Labels().Set(omnires.LabelWorkerRole, "")
+	if err := state.Create(ctx, machineSet); err != nil {
+		t.Fatalf("create machine set: %v", err)
+	}
+
+	machineRequest := infrares.NewMachineRequest("worker-01")
+	machineRequest.Metadata().Labels().Set(omnires.LabelMachineRequestSet, machineSet.Metadata().ID())
+	if err := state.Create(ctx, machineRequest); err != nil {
+		t.Fatalf("create machine request: %v", err)
+	}
+
+	clusterName, role, err := provisioner.resolveClusterRole(ctx, machineRequest)
+	if err != nil {
+		t.Fatalf("resolveClusterRole() error = %v", err)
+	}
+
+	if clusterName != "HPLSVC" {
+		t.Fatalf("expected cluster name HPLSVC, got %q", clusterName)
+	}
+
+	if role != nodeRoleWorker {
+		t.Fatalf("expected worker role %q, got %q", nodeRoleWorker, role)
+	}
+}
+
+func TestClusterRoleFromMachineRequestSet(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		machineSetID string
+		clusterName  string
+		role         string
+	}{
+		{
+			name:         "control plane",
+			machineSetID: "hplsvc-control-planes",
+			clusterName:  "hplsvc",
+			role:         nodeRoleControlPlane,
+		},
+		{
+			name:         "worker",
+			machineSetID: "hplsvc-workers-a",
+			clusterName:  "hplsvc",
+			role:         nodeRoleWorker,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			clusterName, role, err := ClusterRoleFromMachineRequestSet(tt.machineSetID)
+			if err != nil {
+				t.Fatalf("ClusterRoleFromMachineRequestSet() error = %v", err)
+			}
+
+			if clusterName != tt.clusterName {
+				t.Fatalf("expected cluster %q, got %q", tt.clusterName, clusterName)
+			}
+
+			if role != tt.role {
+				t.Fatalf("expected role %q, got %q", tt.role, role)
+			}
+		})
 	}
 }
 

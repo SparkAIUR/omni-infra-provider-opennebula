@@ -17,6 +17,9 @@ import (
 const (
 	nodeRoleControlPlane = "cp"
 	nodeRoleWorker       = "w"
+
+	controlPlaneMachineSetSuffix = "-control-planes"
+	workerMachineSetMarker       = "-workers-"
 )
 
 // CanonicalVMName normalizes the Omni request ID into an OpenNebula/Talos-safe name.
@@ -74,17 +77,45 @@ func NormalizeClusterPrefix(clusterName string) (string, error) {
 	}
 }
 
-// MachineRequestRole returns the role token used by cluster-role sequence naming.
-func MachineRequestRole(machineRequest *infrares.MachineRequest) (string, error) {
-	if _, ok := machineRequest.Metadata().Labels().Get(omnires.LabelControlPlaneRole); ok {
+func roleFromLabels(labels interface {
+	Get(string) (string, bool)
+}, resourceID string) (string, error) {
+	if _, ok := labels.Get(omnires.LabelControlPlaneRole); ok {
 		return nodeRoleControlPlane, nil
 	}
 
-	if _, ok := machineRequest.Metadata().Labels().Get(omnires.LabelWorkerRole); ok {
+	if _, ok := labels.Get(omnires.LabelWorkerRole); ok {
 		return nodeRoleWorker, nil
 	}
 
-	return "", fmt.Errorf("machine request %q is missing control-plane/worker role labels", machineRequest.Metadata().ID())
+	return "", fmt.Errorf("resource %q is missing control-plane/worker role labels", resourceID)
+}
+
+// MachineRequestRole returns the role token used by cluster-role sequence naming.
+func MachineRequestRole(machineRequest *infrares.MachineRequest) (string, error) {
+	return roleFromLabels(machineRequest.Metadata().Labels(), machineRequest.Metadata().ID())
+}
+
+// ClusterRoleFromMachineRequestSet infers the cluster name and role from the Omni machine-request-set naming convention.
+func ClusterRoleFromMachineRequestSet(machineRequestSetID string) (string, string, error) {
+	switch {
+	case strings.HasSuffix(machineRequestSetID, controlPlaneMachineSetSuffix):
+		clusterName := strings.TrimSuffix(machineRequestSetID, controlPlaneMachineSetSuffix)
+		if clusterName == "" {
+			return "", "", fmt.Errorf("machine request set %q resolves to an empty cluster name", machineRequestSetID)
+		}
+
+		return clusterName, nodeRoleControlPlane, nil
+	case strings.Contains(machineRequestSetID, workerMachineSetMarker):
+		clusterName, _, _ := strings.Cut(machineRequestSetID, workerMachineSetMarker)
+		if clusterName == "" {
+			return "", "", fmt.Errorf("machine request set %q resolves to an empty cluster name", machineRequestSetID)
+		}
+
+		return clusterName, nodeRoleWorker, nil
+	default:
+		return "", "", fmt.Errorf("machine request set %q does not match supported control-plane/worker naming", machineRequestSetID)
+	}
 }
 
 // SequenceVMName formats the deterministic VM name for cluster-role sequence naming.

@@ -44,17 +44,12 @@ func (p *Provisioner) resolveVMName(
 		return "", fmt.Errorf("get machine request %q: %w", requestID, err)
 	}
 
-	clusterName, ok := machineRequest.Metadata().Labels().Get(omnires.LabelCluster)
-	if !ok {
-		return "", fmt.Errorf("machine request %q is missing %q label", requestID, omnires.LabelCluster)
-	}
-
-	clusterPrefix, err := NormalizeClusterPrefix(clusterName)
+	clusterName, role, err := p.resolveClusterRole(ctx, machineRequest)
 	if err != nil {
 		return "", err
 	}
 
-	role, err := MachineRequestRole(machineRequest)
+	clusterPrefix, err := NormalizeClusterPrefix(clusterName)
 	if err != nil {
 		return "", err
 	}
@@ -104,6 +99,67 @@ func (p *Provisioner) resolveVMName(
 	}
 
 	return "", fmt.Errorf("allocate name reservation for %s/%s: too many conflicts", clusterPrefix, role)
+}
+
+func (p *Provisioner) resolveClusterRole(ctx context.Context, machineRequest *infrares.MachineRequest) (string, string, error) {
+	clusterName, clusterOK := machineRequest.Metadata().Labels().Get(omnires.LabelCluster)
+	role, roleErr := MachineRequestRole(machineRequest)
+	if clusterOK && roleErr == nil {
+		return clusterName, role, nil
+	}
+
+	machineSetID, ok := machineRequest.Metadata().Labels().Get(omnires.LabelMachineRequestSet)
+	if !ok {
+		if !clusterOK {
+			return "", "", fmt.Errorf("machine request %q is missing %q label", machineRequest.Metadata().ID(), omnires.LabelCluster)
+		}
+
+		return "", "", roleErr
+	}
+
+	machineSet, err := safe.StateGetByID[*omnires.MachineSet](ctx, p.omniState, machineSetID)
+	if err == nil {
+		if !clusterOK {
+			clusterName, clusterOK = machineSet.Metadata().Labels().Get(omnires.LabelCluster)
+		}
+
+		if roleErr != nil {
+			role, roleErr = roleFromLabels(machineSet.Metadata().Labels(), machineSet.Metadata().ID())
+		}
+	}
+
+	if (!clusterOK || roleErr != nil) && machineSetID != "" {
+		inferredClusterName, inferredRole, inferErr := ClusterRoleFromMachineRequestSet(machineSetID)
+		if inferErr == nil {
+			if !clusterOK {
+				clusterName = inferredClusterName
+				clusterOK = true
+			}
+
+			if roleErr != nil {
+				role = inferredRole
+				roleErr = nil
+			}
+		}
+	}
+
+	if !clusterOK {
+		if err != nil {
+			return "", "", fmt.Errorf("get machine set %q for machine request %q: %w", machineSetID, machineRequest.Metadata().ID(), err)
+		}
+
+		return "", "", fmt.Errorf("machine request %q and machine set %q are missing %q label", machineRequest.Metadata().ID(), machineSetID, omnires.LabelCluster)
+	}
+
+	if roleErr != nil {
+		if err != nil {
+			return "", "", fmt.Errorf("get machine set %q for machine request %q: %w", machineSetID, machineRequest.Metadata().ID(), err)
+		}
+
+		return "", "", roleErr
+	}
+
+	return clusterName, role, nil
 }
 
 func (p *Provisioner) loadExistingReservation(ctx context.Context, machine *resources.Machine, machineUUID string) (string, bool, error) {
