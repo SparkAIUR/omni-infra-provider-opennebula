@@ -55,6 +55,12 @@ func (c *instrumentedClient) LookupNetworksByName(ctx context.Context, names []s
 	})
 }
 
+func (c *instrumentedClient) ListHosts(ctx context.Context, request HostListRequest) ([]HostInfo, error) {
+	return observe(c, "list_hosts", func() ([]HostInfo, error) {
+		return c.inner.ListHosts(ctx, request)
+	})
+}
+
 func (c *instrumentedClient) ResolveHypervisor(ctx context.Context, request HypervisorResolveRequest) (string, error) {
 	return observe(c, "resolve_hypervisor", func() (string, error) {
 		return c.inner.ResolveHypervisor(ctx, request)

@@ -21,6 +21,7 @@ type Client struct {
 	Datastores          map[string]parent.DatastoreRef
 	Networks            map[string]parent.NetworkRef
 	Hypervisors         []string
+	Hosts               []parent.HostInfo
 	VMs                 map[int]parent.VMInfo
 	InstantiateErr      error
 	LookupImageErr      error
@@ -51,6 +52,7 @@ func New() *Client {
 		Datastores:    map[string]parent.DatastoreRef{},
 		Networks:      map[string]parent.NetworkRef{},
 		Hypervisors:   []string{"qemu"},
+		Hosts:         nil,
 		VMs:           map[int]parent.VMInfo{},
 		NextVMID:      100,
 		NextImageID:   200,
@@ -114,9 +116,68 @@ func (c *Client) LookupNetworksByName(_ context.Context, names []string) ([]pare
 	return results, nil
 }
 
+func (c *Client) ListHosts(_ context.Context, request parent.HostListRequest) ([]parent.HostInfo, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if len(c.Hosts) > 0 {
+		hosts := make([]parent.HostInfo, 0, len(c.Hosts))
+		for _, host := range c.Hosts {
+			if request.ResourcePool != "" && host.ClusterName != request.ResourcePool {
+				continue
+			}
+			hosts = append(hosts, host)
+		}
+
+		return hosts, nil
+	}
+
+	hosts := make([]parent.HostInfo, 0, len(c.Hypervisors))
+	for idx, hypervisor := range c.Hypervisors {
+		hosts = append(hosts, parent.HostInfo{
+			ID:             idx + 1,
+			Name:           fmt.Sprintf("host-%d", idx+1),
+			ClusterID:      1,
+			ClusterName:    "default",
+			Hypervisor:     hypervisor,
+			Enabled:        true,
+			Schedulable:    true,
+			CPUTotal:       1600,
+			CPUUsed:        idx * 100,
+			MemoryTotalMiB: 32768,
+			MemoryUsedMiB:  idx * 1024,
+			RunningVMs:     idx,
+		})
+	}
+
+	return hosts, nil
+}
+
 func (c *Client) ResolveHypervisor(_ context.Context, _ parent.HypervisorResolveRequest) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	if len(c.Hosts) > 0 {
+		foundQEMU := false
+		for _, host := range c.Hosts {
+			if !host.Enabled || !host.Schedulable {
+				continue
+			}
+
+			switch host.Hypervisor {
+			case "kvm":
+				return "kvm", nil
+			case "qemu":
+				foundQEMU = true
+			}
+		}
+
+		if foundQEMU {
+			return "qemu", nil
+		}
+
+		return "", fmt.Errorf("%w: neither kvm nor qemu was found on eligible hosts", parent.ErrPolicy)
+	}
 
 	foundQEMU := false
 

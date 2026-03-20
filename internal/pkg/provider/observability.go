@@ -79,6 +79,15 @@ func provisionLogger(logger *zap.Logger, machine *resources.Machine, requestID s
 	if datastore := machine.TypedSpec().Value.Datastore; datastore != "" {
 		fields = append(fields, zap.String("datastore", datastore))
 	}
+	if hypervisor := machine.TypedSpec().Value.ResolvedHypervisor; hypervisor != "" {
+		fields = append(fields, zap.String("resolved_hypervisor", hypervisor))
+	}
+	if host := machine.TypedSpec().Value.ResolvedHostName; host != "" {
+		fields = append(fields, zap.String("resolved_host", host))
+	}
+	if bootstrapProfile := machine.TypedSpec().Value.BootstrapProfile; bootstrapProfile != "" {
+		fields = append(fields, zap.String("bootstrap_profile", bootstrapProfile))
+	}
 
 	if len(machine.TypedSpec().Value.NetworkNames) > 0 {
 		fields = append(fields, zap.Strings("network_names", machine.TypedSpec().Value.NetworkNames))

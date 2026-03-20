@@ -21,6 +21,7 @@ type Client interface {
 	LookupImageByName(context.Context, string) (ImageRef, error)
 	LookupDatastoreByName(context.Context, string) (DatastoreRef, error)
 	LookupNetworksByName(context.Context, []string) ([]NetworkRef, error)
+	ListHosts(context.Context, HostListRequest) ([]HostInfo, error)
 	ResolveHypervisor(context.Context, HypervisorResolveRequest) (string, error)
 	CreateImage(context.Context, CreateImageRequest) (ImageRef, error)
 	GetImage(context.Context, int) (ImageInfo, error)
@@ -90,6 +91,55 @@ type InstantiateRequest struct {
 // HypervisorResolveRequest scopes host-based hypervisor detection.
 type HypervisorResolveRequest struct {
 	ResourcePool string
+}
+
+// HostListRequest scopes eligible host discovery.
+type HostListRequest struct {
+	ResourcePool string
+}
+
+// HostInfo is the normalized provider-facing host inventory.
+type HostInfo struct {
+	ID             int
+	Name           string
+	ClusterID      int
+	ClusterName    string
+	Hypervisor     string
+	Enabled        bool
+	Schedulable    bool
+	CPUTotal       int
+	CPUUsed        int
+	MemoryTotalMiB int
+	MemoryUsedMiB  int
+	RunningVMs     int
+}
+
+// CPUHeadroomRatio reports the remaining CPU fraction.
+func (h HostInfo) CPUHeadroomRatio() float64 {
+	if h.CPUTotal <= 0 {
+		return 0
+	}
+
+	available := h.CPUTotal - h.CPUUsed
+	if available < 0 {
+		available = 0
+	}
+
+	return float64(available) / float64(h.CPUTotal)
+}
+
+// MemoryHeadroomRatio reports the remaining memory fraction.
+func (h HostInfo) MemoryHeadroomRatio() float64 {
+	if h.MemoryTotalMiB <= 0 {
+		return 0
+	}
+
+	available := h.MemoryTotalMiB - h.MemoryUsedMiB
+	if available < 0 {
+		available = 0
+	}
+
+	return float64(available) / float64(h.MemoryTotalMiB)
 }
 
 // VMRef is a lightweight created VM reference.

@@ -82,6 +82,9 @@ func ValidateProviderData(data *ProviderData, cfg config.Config) error {
 	if data.NetworkContextMode == "manual" && len(data.StaticNetwork) == 0 {
 		return fmt.Errorf("manual networkContextMode requires staticNetwork entries")
 	}
+	if data.NetworkContextMode == "manual" && cfg.Policy.ManualNetworking.Mode == config.ManualNetworkingDeny {
+		return fmt.Errorf("manual networkContextMode is disabled by provider config")
+	}
 
 	if err := normalizeStaticNetwork(data); err != nil {
 		return err
@@ -153,6 +156,10 @@ func normalizeNetworks(data *ProviderData, cfg config.Config) error {
 			}
 			if network.Mode == "" {
 				network.Mode = profile.ContextMode
+			}
+
+			if data.NetworkContextMode == "manual" && cfg.Policy.ManualNetworking.Mode == config.ManualNetworkingRequireValidation && !profile.ManualValidated {
+				return fmt.Errorf("network profile %q is not validated for manual networking", network.Profile)
 			}
 		}
 
@@ -373,6 +380,24 @@ func ResolveResources(data ProviderData, cfg config.Config) (ResolvedResources, 
 		if cfg.Limits.MaxRootDiskGiB > 0 && data.Resources.RootDiskGiB > cfg.Limits.MaxRootDiskGiB {
 			return ResolvedResources{}, fmt.Errorf("resources.rootDiskGiB exceeds provider limit of %d", cfg.Limits.MaxRootDiskGiB)
 		}
+		if cfg.Policy.Minimums.VCPU > 0 && data.Resources.VCPU < cfg.Policy.Minimums.VCPU {
+			return ResolvedResources{}, fmt.Errorf("resources.vcpu is below provider minimum of %d", cfg.Policy.Minimums.VCPU)
+		}
+		if cfg.Policy.Minimums.MemoryMiB > 0 && data.Resources.MemoryMiB < cfg.Policy.Minimums.MemoryMiB {
+			return ResolvedResources{}, fmt.Errorf("resources.memoryMiB is below provider minimum of %d", cfg.Policy.Minimums.MemoryMiB)
+		}
+		if cfg.Policy.Minimums.RootDiskGiB > 0 && data.Resources.RootDiskGiB < cfg.Policy.Minimums.RootDiskGiB {
+			return ResolvedResources{}, fmt.Errorf("resources.rootDiskGiB is below provider minimum of %d", cfg.Policy.Minimums.RootDiskGiB)
+		}
+		if cfg.Policy.Maximums.VCPU > 0 && data.Resources.VCPU > cfg.Policy.Maximums.VCPU {
+			return ResolvedResources{}, fmt.Errorf("resources.vcpu exceeds provider maximum of %d", cfg.Policy.Maximums.VCPU)
+		}
+		if cfg.Policy.Maximums.MemoryMiB > 0 && data.Resources.MemoryMiB > cfg.Policy.Maximums.MemoryMiB {
+			return ResolvedResources{}, fmt.Errorf("resources.memoryMiB exceeds provider maximum of %d", cfg.Policy.Maximums.MemoryMiB)
+		}
+		if cfg.Policy.Maximums.RootDiskGiB > 0 && data.Resources.RootDiskGiB > cfg.Policy.Maximums.RootDiskGiB {
+			return ResolvedResources{}, fmt.Errorf("resources.rootDiskGiB exceeds provider maximum of %d", cfg.Policy.Maximums.RootDiskGiB)
+		}
 
 		return ResolvedResources{
 			CPU:         data.Resources.CPU,
@@ -390,6 +415,24 @@ func ResolveResources(data ProviderData, cfg config.Config) (ResolvedResources, 
 
 	if cfg.Limits.MaxRootDiskGiB > 0 && rootDiskGiB > cfg.Limits.MaxRootDiskGiB {
 		return ResolvedResources{}, fmt.Errorf("rootDiskGiB exceeds provider limit of %d", cfg.Limits.MaxRootDiskGiB)
+	}
+	if cfg.Policy.Minimums.VCPU > 0 && flavor.VCPU < cfg.Policy.Minimums.VCPU {
+		return ResolvedResources{}, fmt.Errorf("flavor %q vcpu is below provider minimum of %d", data.Flavor, cfg.Policy.Minimums.VCPU)
+	}
+	if cfg.Policy.Minimums.MemoryMiB > 0 && flavor.MemoryMiB < cfg.Policy.Minimums.MemoryMiB {
+		return ResolvedResources{}, fmt.Errorf("flavor %q memoryMiB is below provider minimum of %d", data.Flavor, cfg.Policy.Minimums.MemoryMiB)
+	}
+	if cfg.Policy.Minimums.RootDiskGiB > 0 && rootDiskGiB < cfg.Policy.Minimums.RootDiskGiB {
+		return ResolvedResources{}, fmt.Errorf("rootDiskGiB is below provider minimum of %d", cfg.Policy.Minimums.RootDiskGiB)
+	}
+	if cfg.Policy.Maximums.VCPU > 0 && flavor.VCPU > cfg.Policy.Maximums.VCPU {
+		return ResolvedResources{}, fmt.Errorf("flavor %q vcpu exceeds provider maximum of %d", data.Flavor, cfg.Policy.Maximums.VCPU)
+	}
+	if cfg.Policy.Maximums.MemoryMiB > 0 && flavor.MemoryMiB > cfg.Policy.Maximums.MemoryMiB {
+		return ResolvedResources{}, fmt.Errorf("flavor %q memoryMiB exceeds provider maximum of %d", data.Flavor, cfg.Policy.Maximums.MemoryMiB)
+	}
+	if cfg.Policy.Maximums.RootDiskGiB > 0 && rootDiskGiB > cfg.Policy.Maximums.RootDiskGiB {
+		return ResolvedResources{}, fmt.Errorf("rootDiskGiB exceeds provider maximum of %d", cfg.Policy.Maximums.RootDiskGiB)
 	}
 
 	return ResolvedResources{

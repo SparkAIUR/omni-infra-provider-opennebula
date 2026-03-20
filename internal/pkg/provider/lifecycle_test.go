@@ -70,6 +70,22 @@ networks:
 		t.Fatal("expected vm id to be persisted")
 	}
 
+	if state.TypedSpec().Value.ResolvedHypervisor != "qemu" {
+		t.Fatalf("expected resolved hypervisor qemu, got %q", state.TypedSpec().Value.ResolvedHypervisor)
+	}
+
+	if state.TypedSpec().Value.ResolvedHostName == "" {
+		t.Fatal("expected resolved host name to be persisted")
+	}
+
+	if state.TypedSpec().Value.PreflightStatus == "" {
+		t.Fatal("expected preflight status to be persisted")
+	}
+
+	if state.TypedSpec().Value.ImageAction == "" {
+		t.Fatal("expected image action to be persisted")
+	}
+
 	if state.TypedSpec().Value.TemplateId != 11 {
 		t.Fatalf("expected template id 11, got %d", state.TypedSpec().Value.TemplateId)
 	}
@@ -189,7 +205,7 @@ func TestInstantiateVMExplicitQEMU(t *testing.T) {
 	cfg := testConfig()
 	cfg.OpenNebula.Hypervisor = "qemu"
 	client := opennebulafake.New()
-	client.Hypervisors = []string{"kvm"}
+	client.Hypervisors = []string{"qemu"}
 	client.Templates["talos-base"] = opennebula.TemplateRef{ID: 11, Name: "talos-base"}
 	client.Images["talos-opennebula-amd64-v1.9.0-schematic-schem-123"] = opennebula.ImageRef{ID: 21, Name: "talos-opennebula-amd64-v1.9.0-schematic-schem-123"}
 	client.Networks["prod-lan"] = opennebula.NetworkRef{ID: 41, Name: "prod-lan"}
@@ -239,7 +255,7 @@ networks:
 	pctx := newProvisionContext(machineRequest, state, "schem-123")
 
 	err := provisioner.instantiateVM(context.Background(), zap.NewNop(), pctx)
-	if err == nil || !strings.Contains(err.Error(), "resolve hypervisor") {
+	if err == nil || !strings.Contains(err.Error(), "neither kvm nor qemu") {
 		t.Fatalf("expected resolve hypervisor error, got %v", err)
 	}
 }

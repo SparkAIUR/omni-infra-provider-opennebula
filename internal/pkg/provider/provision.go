@@ -125,12 +125,24 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 			return nil
 		}
 
-		data, resolvedResources, err := p.resolveRequest(ctx, pctx)
+		plan, err := p.resolveProvisionPlan(ctx, pctx)
 		if err != nil {
+			SetPreflight(pctx.State, string(PreflightStatusFail), []string{err.Error()}, nil)
 			SetLastError(pctx.State, err.Error())
 			return err
 		}
+		data := plan.Data
+		resolvedResources := plan.Resources
 		SetDeleteMode(pctx.State, data.Lifecycle.DeleteMode)
+		SetResolvedHypervisor(pctx.State, plan.Hypervisor)
+		SetResolvedHost(pctx.State, plan.Placement.Selected.ID, plan.Placement.Selected.Name)
+		SetResolvedCluster(pctx.State, plan.Placement.Selected.ClusterID, plan.Placement.Selected.ClusterName)
+		SetPlacementDecision(pctx.State, plan.Placement.Reason, plan.Placement.ScoreSummary)
+		SetPreflight(pctx.State, string(plan.Preflight.Status), plan.Preflight.Errors, plan.Preflight.Warnings)
+		SetBootstrapProfile(pctx.State, plan.BootstrapProfile)
+		SetDatastoreID(pctx.State, plan.Datastore.ID)
+		SetNetworkIDs(pctx.State, networkIDs(plan.Networks))
+		SetDrift(pctx.State, DriftStatusHealthy, nil)
 
 		schematicID := pctx.State.TypedSpec().Value.SchematicId
 		imageName, err := p.renderImageName(pctx.GetTalosVersion(), schematicID)
@@ -156,6 +168,7 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 			SetImageName(pctx.State, imageResult.Image.Name)
 			SetImageSource(pctx.State, imageResult.SourceURL)
 			SetImageChecksum(pctx.State, imageResult.Checksum)
+			SetImageAction(pctx.State, imageResult.Action, imageResult.CacheHit, imageResult.ChecksumVerified)
 		}
 		if err != nil {
 			SetLastError(pctx.State, err.Error())
@@ -165,35 +178,7 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 		}
 		SetPhase(pctx.State, "image_ready")
 
-		templateRef, err := p.client.LookupTemplateByName(ctx, data.TemplateName)
-		if err != nil {
-			SetLastError(pctx.State, err.Error())
-			SetLastRetryClassification(pctx.State, string(opennebula.ClassifyError(err)))
-			return p.clientError("instantiateVM", "lookup template", err)
-		}
-
-		networks, err := p.client.LookupNetworksByName(ctx, networkNames(data.Networks))
-		if err != nil {
-			SetLastError(pctx.State, err.Error())
-			SetLastRetryClassification(pctx.State, string(opennebula.ClassifyError(err)))
-			return p.clientError("instantiateVM", "lookup networks", err)
-		}
-
-		if data.Datastore != "" {
-			if _, err = p.client.LookupDatastoreByName(ctx, data.Datastore); err != nil {
-				SetLastError(pctx.State, err.Error())
-				SetLastRetryClassification(pctx.State, string(opennebula.ClassifyError(err)))
-				return p.clientError("instantiateVM", "lookup datastore", err)
-			}
-		}
-
 		hostname := pctx.State.TypedSpec().Value.VmName
-		hypervisor, err := p.resolveHypervisor(ctx)
-		if err != nil {
-			SetLastError(pctx.State, err.Error())
-			SetLastRetryClassification(pctx.State, string(opennebula.ClassifyError(err)))
-			return p.clientError("instantiateVM", "resolve hypervisor", err)
-		}
 
 		contextKV := map[string]string{
 			"SET_HOSTNAME": hostname,
@@ -232,29 +217,31 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 		rendered := RenderTemplate(RenderInput{
 			VMName:          hostname,
 			MachineUUID:     GetMachineUUID(pctx.State),
-			Hypervisor:      hypervisor,
+			Hypervisor:      plan.Hypervisor,
 			ImageName:       imageResult.Image.Name,
 			Datastore:       data.Datastore,
 			Resources:       resolvedResources,
-			Networks:        renderedNetworks(data, networks),
+			Networks:        renderedNetworks(data, plan.Networks),
 			FirmwareMode:    data.Firmware.Mode,
 			SecureBoot:      effectiveSecureBoot(&data),
 			GraphicsEnabled: effectiveGraphicsEnabled(&data),
 			ContextKV:       contextKV,
-			Placement:       resolvedPlacement(data),
+			Placement:       resolvedPlacement(data, plan.Placement),
 			AdditionalDisks: data.AdditionalDisks,
 		})
 
 		stepLogger := provisionLogger(logger, pctx.State, pctx.GetRequestID(),
-			zap.String("template_name", templateRef.Name),
+			zap.String("template_name", plan.Template.Name),
 			zap.String("image_name", imageResult.Image.Name),
 			zap.String("datastore", data.Datastore),
+			zap.String("resolved_hypervisor", plan.Hypervisor),
+			zap.String("resolved_host", plan.Placement.Selected.Name),
 			zap.Strings("network_names", networkNames(data.Networks)),
 		)
 		stepLogger.Debug("opennebula extra template rendered", zap.String("template", RedactTemplateForLog(rendered)))
 
 		vmRef, err := p.client.InstantiateTemplate(ctx, opennebula.InstantiateRequest{
-			TemplateID:    templateRef.ID,
+			TemplateID:    plan.Template.ID,
 			VMName:        hostname,
 			ExtraTemplate: rendered,
 			Pending:       false,
@@ -267,8 +254,8 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 		}
 
 		SetVMID(pctx.State, vmRef.ID)
-		SetTemplateName(pctx.State, templateRef.Name)
-		SetTemplateID(pctx.State, templateRef.ID)
+		SetTemplateName(pctx.State, plan.Template.Name)
+		SetTemplateID(pctx.State, plan.Template.ID)
 		SetImageID(pctx.State, imageResult.Image.ID)
 		SetImageName(pctx.State, imageResult.Image.Name)
 		SetImageSource(pctx.State, imageResult.SourceURL)
@@ -289,15 +276,24 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 func (p *Provisioner) waitForVM(ctx context.Context, _ *zap.Logger, pctx provision.Context[*resources.Machine]) error {
 	return p.runProvisionStep("waitForVM", func() error {
 		vmID := GetVMID(pctx.State)
+		bootstrapProfile := pctx.State.TypedSpec().Value.BootstrapProfile
+		retryInterval := 10 * time.Second
+		if bootstrapProfile == providerconfig.BootstrapProfileLab {
+			retryInterval = 15 * time.Second
+		}
+
 		if vmID == 0 {
 			SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassRetryable))
-			return p.retryError("waitForVM", 10*time.Second, "vm id is not set yet")
+			return p.retryError("waitForVM", retryInterval, "vm id is not set yet")
 		}
 
 		vmInfo, err := p.client.GetVM(ctx, vmID)
 		if err != nil {
 			SetLastError(pctx.State, err.Error())
 			SetLastRetryClassification(pctx.State, string(opennebula.ClassifyError(err)))
+			if opennebula.IsNotFoundError(err) {
+				SetDrift(pctx.State, DriftStatusActionable, []string{fmt.Sprintf("vm %d is missing in OpenNebula", vmID)})
+			}
 			return p.clientError("waitForVM", "get vm", err)
 		}
 
@@ -312,12 +308,13 @@ func (p *Provisioner) waitForVM(ctx context.Context, _ *zap.Logger, pctx provisi
 			err = fmt.Errorf("%w: vm %d reached non-running state=%s lcm=%s", opennebula.ErrTerminal, vmID, vmInfo.State, vmInfo.LCMState)
 			SetLastError(pctx.State, err.Error())
 			SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassTerminal))
+			SetDrift(pctx.State, DriftStatusWarning, []string{fmt.Sprintf("vm %d entered failure state %s/%s", vmID, vmInfo.State, vmInfo.LCMState)})
 
 			return err
 		}
 
 		SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassRetryable))
-		return p.retryError("waitForVM", 10*time.Second, "vm %d not running yet (state=%s lcm=%s)", vmID, vmInfo.State, vmInfo.LCMState)
+		return p.retryError("waitForVM", retryInterval, "vm %d not running yet (state=%s lcm=%s bootstrap_profile=%s)", vmID, vmInfo.State, vmInfo.LCMState, bootstrapProfile)
 	})
 }
 
@@ -460,13 +457,30 @@ func renderedNetworks(data ProviderData, resolved []opennebula.NetworkRef) []Ren
 	return rendered
 }
 
-func resolvedPlacement(data ProviderData) ResolvedPlacement {
-	requirements := make([]string, 0, 2)
-	if data.Placement.Host != "" {
-		requirements = append(requirements, fmt.Sprintf(`NAME = "%s"`, data.Placement.Host))
+func networkIDs(networks []opennebula.NetworkRef) []int {
+	ids := make([]int, 0, len(networks))
+	for _, network := range networks {
+		ids = append(ids, network.ID)
 	}
-	if data.Placement.Cluster != "" {
-		requirements = append(requirements, fmt.Sprintf(`CLUSTER = "%s"`, data.Placement.Cluster))
+
+	return ids
+}
+
+func resolvedPlacement(data ProviderData, placement PlacementDecision) ResolvedPlacement {
+	requirements := make([]string, 0, 2)
+	hostName := data.Placement.Host
+	if placement.Selected.Name != "" {
+		hostName = placement.Selected.Name
+	}
+	if hostName != "" {
+		requirements = append(requirements, fmt.Sprintf(`NAME = "%s"`, hostName))
+	}
+	clusterName := data.Placement.Cluster
+	if placement.Selected.ClusterName != "" {
+		clusterName = placement.Selected.ClusterName
+	}
+	if clusterName != "" {
+		requirements = append(requirements, fmt.Sprintf(`CLUSTER = "%s"`, clusterName))
 	}
 
 	return ResolvedPlacement{

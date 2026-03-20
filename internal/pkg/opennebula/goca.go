@@ -111,21 +111,59 @@ func (c *GOCAClient) LookupNetworksByName(ctx context.Context, names []string) (
 	return refs, nil
 }
 
-// ResolveHypervisor resolves the supported hypervisor from eligible OpenNebula hosts.
-func (c *GOCAClient) ResolveHypervisor(ctx context.Context, request HypervisorResolveRequest) (string, error) {
+// ListHosts resolves the eligible OpenNebula host inventory.
+func (c *GOCAClient) ListHosts(ctx context.Context, request HostListRequest) ([]HostInfo, error) {
 	hostPool, err := c.controller.Hosts().InfoContext(ctx)
 	if err != nil {
-		return "", fmt.Errorf("list hosts: %w", err)
+		return nil, fmt.Errorf("list hosts: %w", err)
 	}
 
-	foundQEMU := false
+	hosts := make([]HostInfo, 0, len(hostPool.Hosts))
 
 	for _, host := range hostPool.Hosts {
 		if request.ResourcePool != "" && !strings.EqualFold(host.Cluster, request.ResourcePool) {
 			continue
 		}
 
-		switch strings.ToLower(strings.TrimSpace(host.VMMAD)) {
+		state, stateErr := host.StateString()
+		if stateErr != nil {
+			return nil, fmt.Errorf("state host %q: %w", host.Name, stateErr)
+		}
+
+		hosts = append(hosts, HostInfo{
+			ID:             host.ID,
+			Name:           host.Name,
+			ClusterID:      host.ClusterID,
+			ClusterName:    host.Cluster,
+			Hypervisor:     strings.ToLower(strings.TrimSpace(host.VMMAD)),
+			Enabled:        strings.EqualFold(state, "MONITORED"),
+			Schedulable:    strings.EqualFold(state, "MONITORED"),
+			CPUTotal:       host.Share.MaxCPU,
+			CPUUsed:        host.Share.CPUUsage,
+			MemoryTotalMiB: host.Share.MaxMem / 1024,
+			MemoryUsedMiB:  host.Share.MemUsage / 1024,
+			RunningVMs:     host.Share.RunningVMs,
+		})
+	}
+
+	return hosts, nil
+}
+
+// ResolveHypervisor resolves the supported hypervisor from eligible OpenNebula hosts.
+func (c *GOCAClient) ResolveHypervisor(ctx context.Context, request HypervisorResolveRequest) (string, error) {
+	hosts, err := c.ListHosts(ctx, HostListRequest{ResourcePool: request.ResourcePool})
+	if err != nil {
+		return "", err
+	}
+
+	foundQEMU := false
+
+	for _, host := range hosts {
+		if !host.Enabled || !host.Schedulable {
+			continue
+		}
+
+		switch strings.ToLower(strings.TrimSpace(host.Hypervisor)) {
 		case "kvm":
 			return "kvm", nil
 		case "qemu":
