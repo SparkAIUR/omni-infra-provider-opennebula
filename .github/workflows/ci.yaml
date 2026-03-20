@@ -25,8 +25,7 @@ jobs:
       issues: read
       packages: write
       pull-requests: read
-    runs-on:
-      group: generic
+    runs-on: ubuntu-latest
     if: (!startsWith(github.head_ref, 'renovate/') && !startsWith(github.head_ref, 'dependabot/'))
     steps:
       - name: gather-system-info
@@ -62,9 +61,6 @@ jobs:
       - name: Set up Docker Buildx
         id: setup-buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # version: v3.12.0
-        with:
-          driver: remote
-          endpoint: tcp://buildkit-amd64.ci.svc.cluster.local:1234
         timeout-minutes: 10
       - name: base
         run: |
@@ -117,8 +113,7 @@ jobs:
             _out/omni-infra-provider-opennebula-*
             _out/sha*.txt
   lint:
-    runs-on:
-      group: generic
+    runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     needs:
       - default
@@ -156,16 +151,12 @@ jobs:
       - name: Set up Docker Buildx
         id: setup-buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # version: v3.12.0
-        with:
-          driver: remote
-          endpoint: tcp://buildkit-amd64.ci.svc.cluster.local:1234
         timeout-minutes: 10
       - name: lint
         run: |
           make lint
   unit-tests:
-    runs-on:
-      group: generic
+    runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     needs:
       - default
@@ -203,9 +194,6 @@ jobs:
       - name: Set up Docker Buildx
         id: setup-buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # version: v3.12.0
-        with:
-          driver: remote
-          endpoint: tcp://buildkit-amd64.ci.svc.cluster.local:1234
         timeout-minutes: 10
       - name: unit-tests
         run: |
@@ -214,8 +202,7 @@ jobs:
         run: |
           make unit-tests-race
   context-store-tests:
-    runs-on:
-      group: generic
+    runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     needs:
       - default
