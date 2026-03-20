@@ -61,7 +61,7 @@ helm upgrade --install omni-infra-provider-opennebula ./helm/omni-infra-provider
 | Parameter | Description | Default |
 | --- | --- | --- |
 | `image.repository` | Provider image repository | `docker.io/nudevco/omni-infra-provider-opennebula` |
-| `image.tag` | Provider image tag | `0.0.0-edge.local` |
+| `image.tag` | Provider image tag | `0.1.0` |
 | `omni.endpoint` | Omni API endpoint passed to the provider | `https://omni.example.com` |
 | `providerConfig.opennebula.endpoint` | OpenNebula XML-RPC endpoint | `http://127.0.0.1:2633/RPC2` |
 | `providerConfig.opennebula.hypervisor` | `auto`, `kvm`, or `qemu` | `auto` |

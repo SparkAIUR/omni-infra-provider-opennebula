@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: docker.io/nudevco/omni-infra-provider-opennebula
-  tag: 0.0.0-edge.local
+  tag: 0.1.0
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
