@@ -1,0 +1,43 @@
+providerID: opennebula
+opennebula:
+  endpoint: http://127.0.0.1:2633/RPC2
+  templateName: talos-omni-base
+  hypervisor: auto
+  resourcePool: staging-kvm
+  allowedDatastores:
+    - default
+    - ceph-images
+    - one-csi
+  allowedNetworks:
+    - talos-stage-auto
+    - talos-stage-manual
+defaults:
+  flavor: medium
+  firmware: uefi
+  secureBoot: false
+  graphicsEnabled: false
+  networkContextMode: auto
+  hostnameStrategy: cluster-role-sequence
+imageManagement:
+  importOnMiss: true
+  requireChecksum: true
+  artifactURLTemplate: https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersion }}/opennebula-{{ .Arch }}.qcow2
+  checksumURLTemplate: https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersion }}/opennebula-{{ .Arch }}.qcow2.sha256
+storagePolicies:
+  defaultDatastore: default
+observability:
+  listenAddress: :9977
+  metricsPath: /metrics
+  healthPath: /healthz
+  readyPath: /readyz
+flavors:
+  small:
+    cpu: "2"
+    vcpu: 2
+    memoryMiB: 4096
+    rootDiskGiB: 40
+  medium:
+    cpu: "4"
+    vcpu: 4
+    memoryMiB: 8192
+    rootDiskGiB: 60

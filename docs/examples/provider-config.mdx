@@ -12,6 +12,8 @@ providerID: opennebula
 opennebula:
   endpoint: "https://opennebula.example.com/RPC2"
   templateName: "talos-omni-base"
+  hypervisor: "auto"
+  resourcePool: "staging-kvm"
   allowedTemplates:
     - "talos-omni-base"
   allowedDatastores:
@@ -27,7 +29,7 @@ defaults:
   secureBoot: true
   graphicsEnabled: false
   networkContextMode: "auto"
-  hostnameStrategy: "vm-name"
+  hostnameStrategy: "cluster-role-sequence"
 features:
   allowExplicitResources: true
   enableGPU: false
@@ -35,8 +37,8 @@ features:
 imageManagement:
   importOnMiss: true
   requireChecksum: true
-  artifactURLTemplate: "https://artifacts.example.com/talos/{{ .TalosVersion }}/{{ .Arch }}/disk.qcow2"
-  checksumURLTemplate: "https://artifacts.example.com/talos/{{ .TalosVersion }}/{{ .Arch }}/disk.qcow2.sha256"
+  artifactURLTemplate: "https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersion }}/opennebula-{{ .Arch }}.qcow2"
+  checksumURLTemplate: "https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersion }}/opennebula-{{ .Arch }}.qcow2.sha256"
   retainGenerations: 2
   pollInterval: 5s
   importTimeout: 20m
@@ -85,6 +87,8 @@ flavors:
 
 - Secrets do not belong in this file.
 - If `allowedDatastores`, `allowedNetworks`, or `allowedTemplates` are empty, the provider does not restrict them.
+- `opennebula.hypervisor: auto` prefers `kvm` and falls back to `qemu`.
 - `imageNamePattern` should match the Talos image naming used in your OpenNebula image catalog.
+- `hostnameStrategy: cluster-role-sequence` is recommended when the VM name must match the Talos hostname exactly.
 - `imageManagement` turns missing-image resolution into a provider-managed import flow.
 - `observability` exposes Prometheus metrics plus `/healthz` and `/readyz`.

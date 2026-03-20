@@ -1,68 +1,129 @@
 # Omni Infrastructure Provider for OpenNebula
 
-`omni-infra-provider-opennebula` provides an OpenNebula-backed dynamic infrastructure provider for Omni. It provisions and deprovisions Talos nodes on OpenNebula, allowing Omni clusters to consume existing OpenNebula capacity through the standard Omni infrastructure-provider workflow.
+`omni-infra-provider-opennebula` is an Omni infrastructure provider that provisions Talos machines as OpenNebula VMs.
 
-## Validated live-lab path
+It is designed for operators who already run Omni and OpenNebula and want:
 
-The current validated path is a single-host lab where OpenNebula, Omni, and the provider run on the same Ubuntu host. The live run covered:
+- deterministic VM naming so VM name == Talos hostname
+- provider-managed Talos image import into OpenNebula
+- policy-controlled templates, datastores, networks, and flavors
+- support for both `kvm` and `qemu`
+- standalone deployment with Docker Compose or in-cluster deployment with Helm
 
-- provider registration with Omni
-- control-plane bootstrap and Omni link creation
-- worker scale-out
-- worker scale-down
-- full cluster delete and stale-VM convergence
-- provider restart during provisioning without duplicate VM creation
-- provider-managed Talos image import-on-miss
-- image reuse on subsequent provisions
-- `/healthz`, `/readyz`, `/metrics`, and auth redaction checks
+Published artifacts:
 
-Validated versions:
+- Docker image: `docker.io/nudevco/omni-infra-provider-opennebula:<tag>`
+- Helm chart: `omni-infra-provider-opennebula`
 
-- Omni `1.6.0`
-- Talos `1.12.4`
-- OpenNebula `7.0.1`
-- Ubuntu `24.04.3`
+## What the provider does
 
-Compatibility note:
+The provider:
 
-- The validated VM path used software-emulated qemu on a single host and required the Talos template CPU model to be set to `Westmere`.
-- Manual networking with `networkContextMode: manual` remains a documented blocker on this exact lab combination. The provider renders the Talos-documented OpenNebula manual context correctly, but the guest still does not become reachable on the static address in this environment.
+1. registers with Omni as provider `opennebula`
+2. watches Omni machine requests
+3. resolves the requested template, image, network, and datastore inputs
+4. instantiates a Talos VM through OpenNebula
+5. injects Talos/OpenNebula context so the VM enrolls into Omni
+6. deprovisions the VM idempotently when Omni releases the machine
 
-## What it does
+## Quick start
 
-- registers with Omni as provider `opennebula`
-- resolves machine shapes from provider-managed flavors or explicit resources
-- instantiates Talos VMs on OpenNebula
-- bootstraps nodes through the Talos OpenNebula platform using OpenNebula `CONTEXT` plus schematic/kernel args from Omni
-- keeps the Talos hostname aligned with the OpenNebula VM name
-- tears down provider-owned VMs cleanly during scale-down or cluster deletion
+Choose one of the deployment paths:
+
+- Standalone Omni lab or VM host:
+  - [deploy/docker-compose/README.md](/Volumes/S0/github/_sparkai/omni-infra-provider-opennebula/deploy/docker-compose/README.md)
+- Omni already running in Kubernetes:
+  - [helm/omni-infra-provider-opennebula/README.md](/Volumes/S0/github/_sparkai/omni-infra-provider-opennebula/helm/omni-infra-provider-opennebula/README.md)
+
+Then start with:
+
+- public docs index: [docs/index.mdx](/Volumes/S0/github/_sparkai/omni-infra-provider-opennebula/docs/index.mdx)
+- getting started: [docs/getting-started.mdx](/Volumes/S0/github/_sparkai/omni-infra-provider-opennebula/docs/getting-started.mdx)
+- config example: [docs/examples/provider-config.mdx](/Volumes/S0/github/_sparkai/omni-infra-provider-opennebula/docs/examples/provider-config.mdx)
+- machine class example: [docs/examples/machineclass.mdx](/Volumes/S0/github/_sparkai/omni-infra-provider-opennebula/docs/examples/machineclass.mdx)
+
+## Operator-facing config
+
+The runtime config is the public contract for most provider behavior. Operators can set:
+
+- OpenNebula endpoint and template defaults
+- hypervisor mode: `auto`, `kvm`, or `qemu`
+- allowed templates, datastores, and networks
+- network profiles
+- flavor catalog and default flavor
+- image import policy and artifact/checksum templates
+- datastore defaults
+- hostname strategy
+- observability paths and listen address
+
+Example:
+
+```yaml
+providerID: opennebula
+opennebula:
+  endpoint: http://127.0.0.1:2633/RPC2
+  templateName: talos-omni-base
+  hypervisor: auto
+  resourcePool: staging-kvm
+  allowedDatastores:
+    - default
+    - ceph-images
+  allowedNetworks:
+    - talos-stage-auto
+    - talos-stage-manual
+defaults:
+  flavor: medium
+  hostnameStrategy: cluster-role-sequence
+imageManagement:
+  importOnMiss: true
+  requireChecksum: true
+  artifactURLTemplate: https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersion }}/opennebula-{{ .Arch }}.qcow2
+  checksumURLTemplate: https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersion }}/opennebula-{{ .Arch }}.qcow2.sha256
+flavors:
+  small:
+    cpu: "2"
+    vcpu: 2
+    memoryMiB: 4096
+    rootDiskGiB: 40
+  medium:
+    cpu: "4"
+    vcpu: 4
+    memoryMiB: 8192
+    rootDiskGiB: 60
+```
+
+Hypervisor behavior:
+
+- `auto`: inspect eligible OpenNebula hosts and prefer `kvm`, then `qemu`
+- `kvm`: force `HYPERVISOR = "kvm"`
+- `qemu`: force `HYPERVISOR = "qemu"`
+
+## Versioning and releases
+
+Releases use the same version string for the Docker image and Helm chart.
+
+- `main` publishes an edge channel:
+  - `0.0.0-edge.<shortsha>`
+- git tags `vX.Y.Z` publish:
+  - image tag `X.Y.Z`
+  - chart version `X.Y.Z`
+
+The release automation also publishes the Helm chart index to `gh-pages`.
 
 ## Repository map
 
-- `AGENTS.md`: project entrypoint for contributors and AI workers
-- `docs/`: public Mintlify-compatible project documentation
-- `refs/RULES.md`: contributor rules and quality gates
-- `refs/KB.md`: tracked implementation knowledge summary
-- `refs/docs/`: internal architecture and implementation reference pack
+- [AGENTS.md](/Volumes/S0/github/_sparkai/omni-infra-provider-opennebula/AGENTS.md): contributor and worker guidance
+- [docs/](/Volumes/S0/github/_sparkai/omni-infra-provider-opennebula/docs): public Mintlify-compatible documentation
+- [deploy/](/Volumes/S0/github/_sparkai/omni-infra-provider-opennebula/deploy): standalone deployment examples
+- [helm/](/Volumes/S0/github/_sparkai/omni-infra-provider-opennebula/helm): Kubernetes packaging
+- [refs/KB.md](/Volumes/S0/github/_sparkai/omni-infra-provider-opennebula/refs/KB.md): tracked implementation knowledge
 
-## Development status
+## Development
 
-The repository is at a production-readiness hardening stage. The internal spec pack under `refs/docs/` remains the detailed implementation baseline, while the public docs now describe the validated live-lab workflow and its current compatibility envelope.
+Core verification from the repo root:
 
-## Internal tooling
-
-- `tools/ctx/`: private SQLite-backed context store managed with `uv`
-- `.assh/`: repo-local automation scripts and templates for repeatable lab and OpenNebula workflows
-
-## Expected image name
-
-```text
-docker.io/nudevco/omni-infra-provider-opennebula:<tag>
+```bash
+go test ./...
+uv run --project tools/ctx pytest
+make omni-infra-provider-opennebula
 ```
-
-## Next references
-
-- Start with `AGENTS.md`
-- Read the public docs in `docs/`
-- Follow contributor expectations in `refs/RULES.md`
-- Use `docs/live-lab.mdx` for the single-host validated deployment path

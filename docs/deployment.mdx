@@ -1,11 +1,18 @@
 ---
 title: Deployment
-description: Supported runtime topologies and the validated single-host deployment path.
+description: Supported runtime topologies plus the packaged Docker Compose and Helm deployment paths.
 ---
 
 # Deployment
 
-This page covers the provider runtime contract and the deployment topologies currently supported by this repository.
+This page covers the provider runtime contract and the supported operator deployment paths.
+
+## Supported deployment modes
+
+Use one of these:
+
+- Docker Compose for standalone Omni or VM-based environments
+- Helm for environments where Omni already runs in Kubernetes
 
 ## Validated topology
 
@@ -40,6 +47,32 @@ docker.io/nudevco/omni-infra-provider-opennebula:<tag>
 - One OpenNebula auth mode
 - Allowed templates, datastores, and networks that match your OpenNebula inventory
 
+## Docker Compose
+
+The standalone deployment files live under:
+
+- `deploy/docker-compose/compose.yaml`
+- `deploy/docker-compose/.env.example`
+- `deploy/docker-compose/provider-config.yaml.example`
+
+Use this mode when:
+
+- Omni and the provider run on a host or VM
+- you want config and secrets mounted from disk
+- you want the simplest staging or lab deployment model
+
+## Helm
+
+The Kubernetes deployment files live under:
+
+- `helm/omni-infra-provider-opennebula/`
+
+Use this mode when:
+
+- Omni already runs inside Kubernetes
+- you want values-driven provider rollout
+- you want metrics exposed through a Service and optional ServiceMonitor
+
 ## OpenNebula auth
 
 Supported auth environment variables:
@@ -57,11 +90,12 @@ providerID: opennebula
 opennebula:
   endpoint: "https://opennebula.example.com/RPC2"
   templateName: "talos-omni-base"
+  hypervisor: "auto"
 defaults:
   flavor: "small"
   firmware: "uefi"
   networkContextMode: "auto"
-  hostnameStrategy: "vm-name"
+  hostnameStrategy: "cluster-role-sequence"
 features:
   allowExplicitResources: true
   enableGPU: false
@@ -78,25 +112,17 @@ flavors:
     rootDiskGiB: 40
 ```
 
-## Example manifests
+## Validation after deploy
 
-This repository ships two deployment examples:
+After deploying the provider:
 
-- `test/kubernetes-deployment.socket.yaml`: session-token auth example
-- `test/kubernetes-deployment.ssh.yaml`: username/password auth example
-
-The filenames are historical; both are OpenNebula runtime examples. They remain useful for Kubernetes-based deployments, but they were not the primary live-validated path.
-
-## Live-validated standalone container pattern
-
-The provider was validated as a standalone container with:
-
-- bind-mounted `config.yaml`
-- env-file based secrets
-- Docker restart policy
-- local observability port exposure
-
-Use [/live-lab](/live-lab) for the exact sequence and operator workflow.
+1. confirm `/healthz`, `/readyz`, and `/metrics`
+2. register or reconnect the provider in Omni as `opennebula`
+3. create a machine class with `grpctunnel: ENABLED`
+4. provision one machine and confirm:
+   - the OpenNebula VM name matches the Talos hostname
+   - the VM is rendered with the expected `HYPERVISOR`
+   - the machine enrolls into Omni
 
 ## Operator-managed prerequisites
 

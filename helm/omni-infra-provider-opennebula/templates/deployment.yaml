@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "omni-infra-provider-opennebula.fullname" . }}
+  namespace: {{ include "omni-infra-provider-opennebula.namespace" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "omni-infra-provider-opennebula.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "omni-infra-provider-opennebula.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- with .Values.podLabels }}
+{{ toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ toYaml .Values.providerConfig | sha256sum }}
+        {{- with .Values.podAnnotations }}
+{{ toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "omni-infra-provider-opennebula.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: provider
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --omni-api-endpoint={{ .Values.omni.endpoint }}
+            - --config-file=/config/provider-config.yaml
+          env:
+            - name: OMNI_SERVICE_ACCOUNT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-omni-sa" (include "omni-infra-provider-opennebula.fullname" .)) .Values.omni.serviceAccount.existingSecret.name }}
+                  key: {{ default "key" .Values.omni.serviceAccount.existingSecret.key }}
+            - name: OPENNEBULA_SESSION
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-opennebula-auth" (include "omni-infra-provider-opennebula.fullname" .)) .Values.credentials.existingSecret.name }}
+                  key: {{ default "credentials" .Values.credentials.existingSecret.key }}
+                  optional: true
+            - name: OPENNEBULA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-opennebula-auth" (include "omni-infra-provider-opennebula.fullname" .)) .Values.credentials.existingSecret.name }}
+                  key: username
+                  optional: true
+            - name: OPENNEBULA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-opennebula-auth" (include "omni-infra-provider-opennebula.fullname" .)) .Values.credentials.existingSecret.name }}
+                  key: password
+                  optional: true
+          ports:
+            - name: http
+              containerPort: 9977
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "omni-infra-provider-opennebula.fullname" . }}-config

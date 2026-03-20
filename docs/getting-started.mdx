@@ -5,12 +5,13 @@ description: First-run setup for building, configuring, and deploying the OpenNe
 
 # Getting started
 
-This page covers the shortest path to building the provider, validating the internal tooling, and preparing the runtime configuration expected by Omni and OpenNebula.
+This page covers the shortest path to building, configuring, and deploying the provider for a real Omni plus OpenNebula environment.
 
 ## Prerequisites
 
 - Go `1.26.x`
 - Docker with `buildx`
+- Helm `3.x` for the in-cluster deployment path
 - `uv` for the private context-store CLI
 - Access to an Omni endpoint and service-account key
 - Access to an OpenNebula endpoint and either a session token or username/password
@@ -31,15 +32,14 @@ To build the container image locally:
 make image-omni-infra-provider-opennebula
 ```
 
-## Fastest path to a real lab
+## Fastest path to a real environment
 
-If you want the shortest path to a real end-to-end environment instead of only local builds:
+Choose one deployment path:
 
-1. Prepare a single Ubuntu host with OpenNebula and a working VM-capable hypervisor path.
-2. Deploy Omni `1.6.0` on that host using the single-host container topology.
-3. Run the provider as a standalone container on the same host.
-4. Use the examples in [/examples/provider-config](/examples/provider-config) and [/examples/machineclass](/examples/machineclass).
-5. Follow [/live-lab](/live-lab) and then [/runbooks/smoke-test](/runbooks/smoke-test).
+1. Standalone deployment:
+   Use the packaged files under `deploy/docker-compose/`.
+2. In-cluster deployment:
+   Use the chart under `helm/omni-infra-provider-opennebula/`.
 
 ## Runtime config
 
@@ -54,6 +54,15 @@ The provider reads a YAML config file with these top-level sections:
 
 Use the example in [/examples/provider-config](/examples/provider-config) as the baseline.
 
+Important fields to set intentionally:
+
+- `opennebula.hypervisor`
+  - `auto`, `kvm`, or `qemu`
+- `defaults.hostnameStrategy`
+  - use `cluster-role-sequence` when VM name must equal Talos hostname
+- `imageManagement.artifactURLTemplate`
+  - point at the Talos OpenNebula `qcow2` artifact variant
+
 ## Auth modes
 
 The runtime supports two auth paths:
@@ -65,7 +74,7 @@ If both are set, the session token wins.
 
 ## First machine-class flow
 
-1. Deploy the provider using the manifest pattern in [/deployment](/deployment).
+1. Deploy the provider using Docker Compose or Helm as documented in [/deployment](/deployment).
 2. Create a machine class using the examples in [/examples/machineclass](/examples/machineclass).
 3. Apply or update a cluster template that references the OpenNebula machine class.
 4. Confirm the provider creates a VM in OpenNebula and the node joins Omni.

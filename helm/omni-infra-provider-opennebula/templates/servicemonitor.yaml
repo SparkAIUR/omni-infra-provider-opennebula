@@ -1,0 +1,24 @@
+{{- if .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "omni-infra-provider-opennebula.fullname" . }}
+  namespace: {{ default (include "omni-infra-provider-opennebula.namespace" .) .Values.metrics.serviceMonitor.namespace }}
+  labels:
+    {{- toYaml .Values.metrics.serviceMonitor.labels | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.metrics.serviceMonitor.annotations | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "omni-infra-provider-opennebula.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  namespaceSelector:
+    matchNames:
+      - {{ include "omni-infra-provider-opennebula.namespace" . }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
+{{- end }}

@@ -1,0 +1,17 @@
+services:
+  omni-infra-provider-opennebula:
+    image: ${IMAGE_REPOSITORY}:${IMAGE_TAG}
+    container_name: omni-infra-provider-opennebula
+    restart: unless-stopped
+    command:
+      - --omni-api-endpoint=${OMNI_ENDPOINT}
+      - --omni-service-account-key=${OMNI_SERVICE_ACCOUNT_KEY}
+      - --config-file=/config/provider-config.yaml
+    environment:
+      OPENNEBULA_SESSION: ${OPENNEBULA_SESSION:-}
+      OPENNEBULA_USERNAME: ${OPENNEBULA_USERNAME:-}
+      OPENNEBULA_PASSWORD: ${OPENNEBULA_PASSWORD:-}
+    ports:
+      - "9977:9977"
+    volumes:
+      - ./provider-config.yaml:/config/provider-config.yaml:ro

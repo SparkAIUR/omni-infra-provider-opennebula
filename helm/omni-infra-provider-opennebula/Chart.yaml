@@ -1,0 +1,9 @@
+apiVersion: v2
+name: omni-infra-provider-opennebula
+description: Omni infrastructure provider for OpenNebula
+type: application
+version: 0.0.0
+appVersion: 0.0.0
+home: https://github.com/SparkAIUR/omni-infra-provider-opennebula
+sources:
+  - https://github.com/SparkAIUR/omni-infra-provider-opennebula
