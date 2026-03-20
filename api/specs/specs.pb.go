@@ -47,6 +47,24 @@ type MachineSpec struct {
 	NodeRole                string                 `protobuf:"bytes,20,opt,name=node_role,json=nodeRole,proto3" json:"node_role,omitempty"`
 	SequenceNumber          int32                  `protobuf:"varint,21,opt,name=sequence_number,json=sequenceNumber,proto3" json:"sequence_number,omitempty"`
 	ReservationId           string                 `protobuf:"bytes,22,opt,name=reservation_id,json=reservationId,proto3" json:"reservation_id,omitempty"`
+	DatastoreId             int32                  `protobuf:"varint,23,opt,name=datastore_id,json=datastoreId,proto3" json:"datastore_id,omitempty"`
+	NetworkIds              []int32                `protobuf:"varint,24,rep,packed,name=network_ids,json=networkIds,proto3" json:"network_ids,omitempty"`
+	ResolvedHypervisor      string                 `protobuf:"bytes,25,opt,name=resolved_hypervisor,json=resolvedHypervisor,proto3" json:"resolved_hypervisor,omitempty"`
+	ResolvedHostId          int32                  `protobuf:"varint,26,opt,name=resolved_host_id,json=resolvedHostId,proto3" json:"resolved_host_id,omitempty"`
+	ResolvedHostName        string                 `protobuf:"bytes,27,opt,name=resolved_host_name,json=resolvedHostName,proto3" json:"resolved_host_name,omitempty"`
+	ResolvedClusterId       int32                  `protobuf:"varint,28,opt,name=resolved_cluster_id,json=resolvedClusterId,proto3" json:"resolved_cluster_id,omitempty"`
+	ResolvedClusterName     string                 `protobuf:"bytes,29,opt,name=resolved_cluster_name,json=resolvedClusterName,proto3" json:"resolved_cluster_name,omitempty"`
+	PlacementReason         string                 `protobuf:"bytes,30,opt,name=placement_reason,json=placementReason,proto3" json:"placement_reason,omitempty"`
+	PlacementScoreSummary   string                 `protobuf:"bytes,31,opt,name=placement_score_summary,json=placementScoreSummary,proto3" json:"placement_score_summary,omitempty"`
+	PreflightStatus         string                 `protobuf:"bytes,32,opt,name=preflight_status,json=preflightStatus,proto3" json:"preflight_status,omitempty"`
+	PreflightErrors         []string               `protobuf:"bytes,33,rep,name=preflight_errors,json=preflightErrors,proto3" json:"preflight_errors,omitempty"`
+	PreflightWarnings       []string               `protobuf:"bytes,34,rep,name=preflight_warnings,json=preflightWarnings,proto3" json:"preflight_warnings,omitempty"`
+	ImageAction             string                 `protobuf:"bytes,35,opt,name=image_action,json=imageAction,proto3" json:"image_action,omitempty"`
+	ImageCacheHit           bool                   `protobuf:"varint,36,opt,name=image_cache_hit,json=imageCacheHit,proto3" json:"image_cache_hit,omitempty"`
+	ImageChecksumVerified   bool                   `protobuf:"varint,37,opt,name=image_checksum_verified,json=imageChecksumVerified,proto3" json:"image_checksum_verified,omitempty"`
+	BootstrapProfile        string                 `protobuf:"bytes,38,opt,name=bootstrap_profile,json=bootstrapProfile,proto3" json:"bootstrap_profile,omitempty"`
+	DriftStatus             string                 `protobuf:"bytes,39,opt,name=drift_status,json=driftStatus,proto3" json:"drift_status,omitempty"`
+	DriftDetails            []string               `protobuf:"bytes,40,rep,name=drift_details,json=driftDetails,proto3" json:"drift_details,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -235,6 +253,132 @@ func (x *MachineSpec) GetReservationId() string {
 	return ""
 }
 
+func (x *MachineSpec) GetDatastoreId() int32 {
+	if x != nil {
+		return x.DatastoreId
+	}
+	return 0
+}
+
+func (x *MachineSpec) GetNetworkIds() []int32 {
+	if x != nil {
+		return x.NetworkIds
+	}
+	return nil
+}
+
+func (x *MachineSpec) GetResolvedHypervisor() string {
+	if x != nil {
+		return x.ResolvedHypervisor
+	}
+	return ""
+}
+
+func (x *MachineSpec) GetResolvedHostId() int32 {
+	if x != nil {
+		return x.ResolvedHostId
+	}
+	return 0
+}
+
+func (x *MachineSpec) GetResolvedHostName() string {
+	if x != nil {
+		return x.ResolvedHostName
+	}
+	return ""
+}
+
+func (x *MachineSpec) GetResolvedClusterId() int32 {
+	if x != nil {
+		return x.ResolvedClusterId
+	}
+	return 0
+}
+
+func (x *MachineSpec) GetResolvedClusterName() string {
+	if x != nil {
+		return x.ResolvedClusterName
+	}
+	return ""
+}
+
+func (x *MachineSpec) GetPlacementReason() string {
+	if x != nil {
+		return x.PlacementReason
+	}
+	return ""
+}
+
+func (x *MachineSpec) GetPlacementScoreSummary() string {
+	if x != nil {
+		return x.PlacementScoreSummary
+	}
+	return ""
+}
+
+func (x *MachineSpec) GetPreflightStatus() string {
+	if x != nil {
+		return x.PreflightStatus
+	}
+	return ""
+}
+
+func (x *MachineSpec) GetPreflightErrors() []string {
+	if x != nil {
+		return x.PreflightErrors
+	}
+	return nil
+}
+
+func (x *MachineSpec) GetPreflightWarnings() []string {
+	if x != nil {
+		return x.PreflightWarnings
+	}
+	return nil
+}
+
+func (x *MachineSpec) GetImageAction() string {
+	if x != nil {
+		return x.ImageAction
+	}
+	return ""
+}
+
+func (x *MachineSpec) GetImageCacheHit() bool {
+	if x != nil {
+		return x.ImageCacheHit
+	}
+	return false
+}
+
+func (x *MachineSpec) GetImageChecksumVerified() bool {
+	if x != nil {
+		return x.ImageChecksumVerified
+	}
+	return false
+}
+
+func (x *MachineSpec) GetBootstrapProfile() string {
+	if x != nil {
+		return x.BootstrapProfile
+	}
+	return ""
+}
+
+func (x *MachineSpec) GetDriftStatus() string {
+	if x != nil {
+		return x.DriftStatus
+	}
+	return ""
+}
+
+func (x *MachineSpec) GetDriftDetails() []string {
+	if x != nil {
+		return x.DriftDetails
+	}
+	return nil
+}
+
 // NameReservationSpec stores cluster-role sequence allocations for deterministic VM naming.
 type NameReservationSpec struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
@@ -348,7 +492,7 @@ var File_specs_specs_proto protoreflect.FileDescriptor
 
 const file_specs_specs_proto_rawDesc = "" +
 	"\n" +
-	"\x11specs/specs.proto\x12\x0fopennebulaspecs\"\x89\x06\n" +
+	"\x11specs/specs.proto\x12\x0fopennebulaspecs\"\x9a\f\n" +
 	"\vMachineSpec\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\x05R\x04vmId\x12\x17\n" +
 	"\avm_name\x18\x02 \x01(\tR\x06vmName\x12#\n" +
@@ -375,7 +519,26 @@ const file_specs_specs_proto_rawDesc = "" +
 	"\x0ecluster_prefix\x18\x13 \x01(\tR\rclusterPrefix\x12\x1b\n" +
 	"\tnode_role\x18\x14 \x01(\tR\bnodeRole\x12'\n" +
 	"\x0fsequence_number\x18\x15 \x01(\x05R\x0esequenceNumber\x12%\n" +
-	"\x0ereservation_id\x18\x16 \x01(\tR\rreservationId\"\xc2\x02\n" +
+	"\x0ereservation_id\x18\x16 \x01(\tR\rreservationId\x12!\n" +
+	"\fdatastore_id\x18\x17 \x01(\x05R\vdatastoreId\x12\x1f\n" +
+	"\vnetwork_ids\x18\x18 \x03(\x05R\n" +
+	"networkIds\x12/\n" +
+	"\x13resolved_hypervisor\x18\x19 \x01(\tR\x12resolvedHypervisor\x12(\n" +
+	"\x10resolved_host_id\x18\x1a \x01(\x05R\x0eresolvedHostId\x12,\n" +
+	"\x12resolved_host_name\x18\x1b \x01(\tR\x10resolvedHostName\x12.\n" +
+	"\x13resolved_cluster_id\x18\x1c \x01(\x05R\x11resolvedClusterId\x122\n" +
+	"\x15resolved_cluster_name\x18\x1d \x01(\tR\x13resolvedClusterName\x12)\n" +
+	"\x10placement_reason\x18\x1e \x01(\tR\x0fplacementReason\x126\n" +
+	"\x17placement_score_summary\x18\x1f \x01(\tR\x15placementScoreSummary\x12)\n" +
+	"\x10preflight_status\x18  \x01(\tR\x0fpreflightStatus\x12)\n" +
+	"\x10preflight_errors\x18! \x03(\tR\x0fpreflightErrors\x12-\n" +
+	"\x12preflight_warnings\x18\" \x03(\tR\x11preflightWarnings\x12!\n" +
+	"\fimage_action\x18# \x01(\tR\vimageAction\x12&\n" +
+	"\x0fimage_cache_hit\x18$ \x01(\bR\rimageCacheHit\x126\n" +
+	"\x17image_checksum_verified\x18% \x01(\bR\x15imageChecksumVerified\x12+\n" +
+	"\x11bootstrap_profile\x18& \x01(\tR\x10bootstrapProfile\x12!\n" +
+	"\fdrift_status\x18' \x01(\tR\vdriftStatus\x12#\n" +
+	"\rdrift_details\x18( \x03(\tR\fdriftDetails\"\xc2\x02\n" +
 	"\x13NameReservationSpec\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12%\n" +
 	"\x0ecluster_prefix\x18\x02 \x01(\tR\rclusterPrefix\x12\x12\n" +

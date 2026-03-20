@@ -66,6 +66,55 @@ flavors:
 	if cfg.Observability.MetricsPath != "/metrics" || cfg.Observability.HealthPath != "/healthz" || cfg.Observability.ReadyPath != "/readyz" {
 		t.Fatalf("unexpected observability defaults: %+v", cfg.Observability)
 	}
+
+	if cfg.Environment.Profile != EnvironmentProfileCustom {
+		t.Fatalf("expected default environment profile %q, got %q", EnvironmentProfileCustom, cfg.Environment.Profile)
+	}
+
+	if cfg.Policy.ManualNetworking.Mode != ManualNetworkingRequireValidation {
+		t.Fatalf("expected default manual networking mode %q, got %q", ManualNetworkingRequireValidation, cfg.Policy.ManualNetworking.Mode)
+	}
+
+	if cfg.Bootstrap.Profile != BootstrapProfileAuto {
+		t.Fatalf("expected default bootstrap profile %q, got %q", BootstrapProfileAuto, cfg.Bootstrap.Profile)
+	}
+}
+
+func TestLoadAppliesLabProfileDefaults(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Load(strings.NewReader(`
+providerID: opennebula
+environment:
+  profile: lab-qemu
+opennebula:
+  endpoint: https://one.example.com/RPC2
+  templateName: talos-base
+defaults:
+  flavor: small
+networkProfiles:
+  lab:
+    networkName: prod-lan
+    contextMode: manual
+    manualValidated: true
+flavors:
+  small:
+    cpu: "2"
+    vcpu: 2
+    memoryMiB: 4096
+    rootDiskGiB: 40
+`))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.OpenNebula.Hypervisor != HypervisorQEMU {
+		t.Fatalf("expected lab profile hypervisor %q, got %q", HypervisorQEMU, cfg.OpenNebula.Hypervisor)
+	}
+
+	if cfg.Bootstrap.Profile != BootstrapProfileLab {
+		t.Fatalf("expected bootstrap profile %q, got %q", BootstrapProfileLab, cfg.Bootstrap.Profile)
+	}
 }
 
 func TestLoadAcceptsClusterRoleSequenceHostnameStrategy(t *testing.T) {

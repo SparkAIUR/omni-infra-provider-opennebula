@@ -27,6 +27,24 @@ message MachineSpec {
   string node_role = 20;
   int32 sequence_number = 21;
   string reservation_id = 22;
+  int32 datastore_id = 23;
+  repeated int32 network_ids = 24;
+  string resolved_hypervisor = 25;
+  int32 resolved_host_id = 26;
+  string resolved_host_name = 27;
+  int32 resolved_cluster_id = 28;
+  string resolved_cluster_name = 29;
+  string placement_reason = 30;
+  string placement_score_summary = 31;
+  string preflight_status = 32;
+  repeated string preflight_errors = 33;
+  repeated string preflight_warnings = 34;
+  string image_action = 35;
+  bool image_cache_hit = 36;
+  bool image_checksum_verified = 37;
+  string bootstrap_profile = 38;
+  string drift_status = 39;
+  repeated string drift_details = 40;
 }
 
 // NameReservationSpec stores cluster-role sequence allocations for deterministic VM naming.

@@ -28,6 +28,29 @@ message MachineSpec {
   string image_checksum = 15;
   string last_successful_phase_at = 16;
   string last_retry_classification = 17;
+  string cluster_name = 18;
+  string cluster_prefix = 19;
+  string node_role = 20;
+  int32 sequence_number = 21;
+  string reservation_id = 22;
+  int32 datastore_id = 23;
+  repeated int32 network_ids = 24;
+  string resolved_hypervisor = 25;
+  int32 resolved_host_id = 26;
+  string resolved_host_name = 27;
+  int32 resolved_cluster_id = 28;
+  string resolved_cluster_name = 29;
+  string placement_reason = 30;
+  string placement_score_summary = 31;
+  string preflight_status = 32;
+  repeated string preflight_errors = 33;
+  repeated string preflight_warnings = 34;
+  string image_action = 35;
+  bool image_cache_hit = 36;
+  bool image_checksum_verified = 37;
+  string bootstrap_profile = 38;
+  string drift_status = 39;
+  repeated string drift_details = 40;
 }
 ```
 
@@ -38,6 +61,13 @@ message MachineSpec {
 - `schematic_id` and `talos_version` explain which Talos artifact path was chosen.
 - `flavor` records the selected named shape when used.
 - `phase`, `last_error`, `last_successful_phase_at`, and `last_retry_classification` support retry and troubleshooting.
+- `cluster_*`, `node_role`, `sequence_number`, and `reservation_id` preserve deterministic hostname allocation.
+- `resolved_hypervisor`, `resolved_host_*`, and `resolved_cluster_*` capture the authoritative runtime selection made by the provider.
+- `placement_reason` and `placement_score_summary` explain why a specific host won provider-side scoring.
+- `preflight_*` surfaces compatibility failures and degraded warnings before or during provisioning.
+- `image_action`, `image_cache_hit`, and `image_checksum_verified` explain whether the provider reused, waited on, or imported a Talos artifact.
+- `bootstrap_profile` shows whether the provider applied lab or production bootstrap behavior.
+- `drift_status` and `drift_details` expose externally deleted or failed VMs as actionable operator-facing drift.
 
 ## Lifecycle expectations
 
@@ -45,3 +75,4 @@ message MachineSpec {
 - Image imports persist enough metadata to resume safely after provider restart.
 - Deprovision clears infrastructure identity fields and marks the phase as `delete_complete`.
 - Missing VMs during deprovision are treated as already deleted success.
+- Drift fields are additive and may remain empty on older state objects created before the richer resolution pipeline was introduced.

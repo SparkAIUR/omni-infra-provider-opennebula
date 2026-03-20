@@ -99,6 +99,11 @@ func SetDatastore(machine *resources.Machine, value string) {
 	machine.TypedSpec().Value.Datastore = value
 }
 
+// SetDatastoreID persists the resolved datastore ID.
+func SetDatastoreID(machine *resources.Machine, value int) {
+	machine.TypedSpec().Value.DatastoreId = int32(value)
+}
+
 // SetFlavor persists the resolved flavor name.
 func SetFlavor(machine *resources.Machine, value string) {
 	machine.TypedSpec().Value.Flavor = value
@@ -125,6 +130,16 @@ func SetNetworkNames(machine *resources.Machine, names []string) {
 	machine.TypedSpec().Value.NetworkNames = append([]string(nil), names...)
 }
 
+// SetNetworkIDs persists the resolved network IDs.
+func SetNetworkIDs(machine *resources.Machine, ids []int) {
+	values := make([]int32, 0, len(ids))
+	for _, id := range ids {
+		values = append(values, int32(id))
+	}
+
+	machine.TypedSpec().Value.NetworkIds = values
+}
+
 // SetClusterName persists the source Omni cluster name used for VM naming.
 func SetClusterName(machine *resources.Machine, value string) {
 	machine.TypedSpec().Value.ClusterName = value
@@ -148,6 +163,54 @@ func SetSequenceNumber(machine *resources.Machine, value int) {
 // SetReservationID persists the provider-owned name reservation resource id.
 func SetReservationID(machine *resources.Machine, value string) {
 	machine.TypedSpec().Value.ReservationId = value
+}
+
+// SetResolvedHypervisor persists the runtime-resolved hypervisor.
+func SetResolvedHypervisor(machine *resources.Machine, value string) {
+	machine.TypedSpec().Value.ResolvedHypervisor = value
+}
+
+// SetResolvedHost persists the chosen host.
+func SetResolvedHost(machine *resources.Machine, hostID int, hostName string) {
+	machine.TypedSpec().Value.ResolvedHostId = int32(hostID)
+	machine.TypedSpec().Value.ResolvedHostName = hostName
+}
+
+// SetResolvedCluster persists the chosen cluster.
+func SetResolvedCluster(machine *resources.Machine, clusterID int, clusterName string) {
+	machine.TypedSpec().Value.ResolvedClusterId = int32(clusterID)
+	machine.TypedSpec().Value.ResolvedClusterName = clusterName
+}
+
+// SetPlacementDecision persists placement reasoning.
+func SetPlacementDecision(machine *resources.Machine, reason, summary string) {
+	machine.TypedSpec().Value.PlacementReason = reason
+	machine.TypedSpec().Value.PlacementScoreSummary = summary
+}
+
+// SetPreflight persists the preflight summary.
+func SetPreflight(machine *resources.Machine, status string, errors, warnings []string) {
+	machine.TypedSpec().Value.PreflightStatus = status
+	machine.TypedSpec().Value.PreflightErrors = append([]string(nil), errors...)
+	machine.TypedSpec().Value.PreflightWarnings = append([]string(nil), warnings...)
+}
+
+// SetImageAction persists the image resolution action summary.
+func SetImageAction(machine *resources.Machine, action string, cacheHit, checksumVerified bool) {
+	machine.TypedSpec().Value.ImageAction = action
+	machine.TypedSpec().Value.ImageCacheHit = cacheHit
+	machine.TypedSpec().Value.ImageChecksumVerified = checksumVerified
+}
+
+// SetBootstrapProfile persists the resolved bootstrap profile.
+func SetBootstrapProfile(machine *resources.Machine, value string) {
+	machine.TypedSpec().Value.BootstrapProfile = value
+}
+
+// SetDrift persists drift status details.
+func SetDrift(machine *resources.Machine, status string, details []string) {
+	machine.TypedSpec().Value.DriftStatus = status
+	machine.TypedSpec().Value.DriftDetails = append([]string(nil), details...)
 }
 
 // GetReservationID reads the provider-owned name reservation resource id.
