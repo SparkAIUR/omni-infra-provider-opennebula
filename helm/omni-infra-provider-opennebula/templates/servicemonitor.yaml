@@ -18,7 +18,7 @@ spec:
       - {{ include "omni-infra-provider-opennebula.namespace" . }}
   endpoints:
     - port: http
-      path: /metrics
+      path: {{ .Values.providerConfig.observability.metricsPath }}
       interval: {{ .Values.metrics.serviceMonitor.interval }}
       scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout }}
 {{- end }}

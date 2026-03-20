@@ -5,8 +5,8 @@ project_name = "omni-infra-provider-opennebula"
 github_repo = "SparkAIUR/omni-infra-provider-opennebula"
 match_deps = "^github.com/(/[a-zA-Z0-9-]+)$"
 ignore_deps = ["gopkg.in/yaml.v3"]
-
-previous = 'v0.1.0-alpha.1'
+# `previous` is resolved dynamically by `hack/release.sh` so the repo does not
+# carry a stale release baseline forward into future releases.
 # pre_release = true
 
 # [notes]
