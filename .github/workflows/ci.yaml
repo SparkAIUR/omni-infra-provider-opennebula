@@ -75,6 +75,13 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           registry: docker.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # version: v3.7.0
+        with:
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
       - name: Compute publish image tag
         if: github.event_name != 'pull_request'
         id: publish-tag
@@ -93,6 +100,14 @@ jobs:
           PUSH: "true"
         run: |
           make image-omni-infra-provider-opennebula IMAGE_TAG=${{ steps.publish-tag.outputs.image_tag }}
+      - name: push-omni-infra-provider-opennebula-ghcr
+        if: github.event_name != 'pull_request'
+        env:
+          PUSH: "true"
+          REGISTRY: ghcr.io
+          USERNAME: sparkaiur
+        run: |
+          make image-omni-infra-provider-opennebula IMAGE_TAG=${{ steps.publish-tag.outputs.image_tag }} REGISTRY=${REGISTRY} USERNAME=${USERNAME}
       - name: Generate Checksums
         if: startsWith(github.ref, 'refs/tags/')
         run: |

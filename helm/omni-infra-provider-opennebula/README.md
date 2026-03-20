@@ -14,6 +14,7 @@ It installs:
 Published images for this chart:
 
 - `docker.io/nudevco/omni-infra-provider-opennebula:<tag>`
+- `ghcr.io/sparkaiur/omni-infra-provider-opennebula:<tag>`
 
 Chart repo:
 
@@ -169,7 +170,7 @@ providerConfig:
 
 | Parameter | Description | Default | Required |
 | --- | --- | --- | --- |
-| `image.repository` | Provider image repository. | `docker.io/nudevco/omni-infra-provider-opennebula` | No |
+| `image.repository` | Provider image repository. Both Docker Hub and GHCR images are published. | `docker.io/nudevco/omni-infra-provider-opennebula` | No |
 | `image.tag` | Provider image tag. | `0.1.0` | No |
 | `image.pullPolicy` | Image pull policy for the provider container. | `IfNotPresent` | No |
 

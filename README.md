@@ -12,7 +12,9 @@ It is designed for operators who already run Omni and OpenNebula and want:
 
 Published artifacts:
 
-- Docker image: `docker.io/nudevco/omni-infra-provider-opennebula:<tag>`
+- Docker images:
+  - `docker.io/nudevco/omni-infra-provider-opennebula:<tag>`
+  - `ghcr.io/sparkaiur/omni-infra-provider-opennebula:<tag>`
 - Helm chart: `omni-infra-provider-opennebula`
 
 ## What the provider does

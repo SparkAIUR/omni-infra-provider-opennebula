@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,13 +37,29 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push image
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image to Docker Hub
         env:
           IMAGE_TAG: ${{ steps.version.outputs.version }}
           PUSH: "true"
           USERNAME: nudevco
         run: |
           make image-omni-infra-provider-opennebula IMAGE_TAG="${IMAGE_TAG}" PUSH="${PUSH}" USERNAME="${USERNAME}"
+
+      - name: Build and push image to GHCR
+        env:
+          IMAGE_TAG: ${{ steps.version.outputs.version }}
+          PUSH: "true"
+          REGISTRY: ghcr.io
+          USERNAME: sparkaiur
+        run: |
+          make image-omni-infra-provider-opennebula IMAGE_TAG="${IMAGE_TAG}" PUSH="${PUSH}" REGISTRY="${REGISTRY}" USERNAME="${USERNAME}"
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
