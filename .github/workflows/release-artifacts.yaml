@@ -59,8 +59,8 @@ jobs:
       - name: Publish chart to gh-pages
         run: |
           git fetch origin gh-pages || true
+          git worktree remove --force .gh-pages || true
           rm -rf .gh-pages
-          mkdir -p .gh-pages/charts
           if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
             git worktree add .gh-pages origin/gh-pages
           else
