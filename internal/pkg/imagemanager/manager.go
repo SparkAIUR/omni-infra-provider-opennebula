@@ -16,7 +16,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"text/template"
+	"time"
 
 	"github.com/klauspost/compress/zstd"
 
@@ -45,6 +47,9 @@ type Result struct {
 	SourceURL       string
 	Checksum        string
 	ProviderManaged bool
+	Action          string
+	CacheHit        bool
+	ChecksumVerified bool
 }
 
 // Manager resolves an existing Talos image or imports it on demand.
@@ -63,6 +68,9 @@ type Manager struct {
 	config     providerconfig.Config
 	httpClient *http.Client
 	metrics    *observability.Metrics
+	lockMu     sync.Mutex
+	locks      map[string]*sync.Mutex
+	lockSeenAt map[string]time.Time
 }
 
 // New creates a Talos image manager for the OpenNebula provider.
@@ -74,6 +82,8 @@ func New(client opennebula.Client, cfg providerconfig.Config, metrics *observabi
 			Timeout: cfg.ImageManagement.ImportTimeout,
 		},
 		metrics: metrics,
+		locks:   map[string]*sync.Mutex{},
+		lockSeenAt: map[string]time.Time{},
 	}
 }
 
@@ -90,7 +100,11 @@ func (m *Manager) Resolve(ctx context.Context, request ResolveRequest) (Result, 
 			return Result{}, err
 		}
 
-		return m.evaluate(imageInfo, request, request.ProviderManaged)
+		result, err := m.evaluate(imageInfo, request, request.ProviderManaged)
+		result.Action = "reused"
+		result.CacheHit = true
+		result.ChecksumVerified = result.Checksum != ""
+		return result, err
 	}
 
 	imageRef, err := m.client.LookupImageByName(ctx, request.ImageName)
@@ -102,7 +116,11 @@ func (m *Manager) Resolve(ctx context.Context, request ResolveRequest) (Result, 
 		}
 
 		m.observe("lookup", "success")
-		return m.evaluate(imageInfo, request, request.ProviderManaged)
+		result, err := m.evaluate(imageInfo, request, request.ProviderManaged)
+		result.Action = "reused"
+		result.CacheHit = true
+		result.ChecksumVerified = result.Checksum != ""
+		return result, err
 	}
 
 	if !opennebula.IsNotFoundError(err) {
@@ -147,6 +165,28 @@ func (m *Manager) Resolve(ctx context.Context, request ResolveRequest) (Result, 
 		return Result{}, err
 	}
 
+	lockKey := request.ImageName + "::" + sourceURL + "::" + datastoreName
+	waited, unlock := m.acquireImportLock(lockKey)
+	defer unlock()
+
+	if imageRef, err := m.client.LookupImageByName(ctx, request.ImageName); err == nil {
+		imageInfo, infoErr := m.client.GetImage(ctx, imageRef.ID)
+		if infoErr != nil {
+			m.observe("lookup", "error")
+			return Result{}, infoErr
+		}
+
+		result, evalErr := m.evaluate(imageInfo, request, true)
+		if waited {
+			result.Action = "waited_for_existing_import"
+		} else {
+			result.Action = "reused"
+		}
+		result.CacheHit = true
+		result.ChecksumVerified = result.Checksum != ""
+		return result, evalErr
+	}
+
 	importRequest, checksum, err := m.prepareImport(ctx, sourceURL, request, datastoreRef.ID)
 	if err != nil {
 		return Result{}, err
@@ -172,7 +212,44 @@ func (m *Manager) Resolve(ctx context.Context, request ResolveRequest) (Result, 
 	request.ExistingChecksum = checksum
 	request.ExistingSource = sourceURL
 
-	return m.evaluate(imageInfo, request, true)
+	result, err := m.evaluate(imageInfo, request, true)
+	result.Action = "imported"
+	result.CacheHit = false
+	result.ChecksumVerified = checksum != ""
+	return result, err
+}
+
+func (m *Manager) acquireImportLock(key string) (bool, func()) {
+	if !m.config.ImageManagement.ImportLock.Enabled {
+		return false, func() {}
+	}
+
+	m.lockMu.Lock()
+	now := time.Now()
+	for seenKey, seenAt := range m.lockSeenAt {
+		if now.Sub(seenAt) > m.config.ImageManagement.ImportLock.StaleAfter {
+			delete(m.lockSeenAt, seenKey)
+			delete(m.locks, seenKey)
+		}
+	}
+
+	lock, ok := m.locks[key]
+	waited := ok
+	if !ok {
+		lock = &sync.Mutex{}
+		m.locks[key] = lock
+	}
+	m.lockSeenAt[key] = now
+	m.lockMu.Unlock()
+
+	lock.Lock()
+
+	return waited, func() {
+		lock.Unlock()
+		m.lockMu.Lock()
+		m.lockSeenAt[key] = time.Now()
+		m.lockMu.Unlock()
+	}
 }
 
 func (m *Manager) prepareImport(

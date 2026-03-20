@@ -49,13 +49,19 @@ Then start with:
 The runtime config is the public contract for most provider behavior. Operators can set:
 
 - OpenNebula endpoint and template defaults
+- environment profile defaults for `lab-qemu`, `production-kvm`, or `custom`
 - hypervisor mode: `auto`, `kvm`, or `qemu`
 - allowed templates, datastores, and networks
+- provider-side placement scoring and host preference behavior
+- provider-side preflight and manual-networking guardrails
+- bootstrap profile and timing behavior
 - network profiles
 - flavor catalog and default flavor
 - image import policy and artifact/checksum templates
+- image import locking and staged cache retention
 - datastore defaults
 - hostname strategy
+- explainability and richer provider state
 - observability paths and listen address
 
 Example:
@@ -76,11 +82,22 @@ opennebula:
 defaults:
   flavor: medium
   hostnameStrategy: cluster-role-sequence
+environment:
+  profile: production-kvm
 imageManagement:
   importOnMiss: true
   requireChecksum: true
   artifactURLTemplate: https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersion }}/opennebula-{{ .Arch }}.qcow2
   checksumURLTemplate: https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersion }}/opennebula-{{ .Arch }}.qcow2.sha256
+placement:
+  strategy: balanced
+policy:
+  preflight:
+    enabled: true
+  manualNetworking:
+    mode: require-validation
+bootstrap:
+  profile: auto
 flavors:
   small:
     cpu: "2"
@@ -99,6 +116,13 @@ Hypervisor behavior:
 - `auto`: inspect eligible OpenNebula hosts and prefer `kvm`, then `qemu`
 - `kvm`: force `HYPERVISOR = "kvm"`
 - `qemu`: force `HYPERVISOR = "qemu"`
+
+Reliability and explainability behavior:
+
+- provider-side preflight runs before instantiate and persists warnings/errors into provider state
+- provider-side placement scoring persists the resolved host, resolved cluster, and selection reason
+- image resolution records whether the provider reused or imported the selected Talos artifact
+- bootstrap profile selection distinguishes qemu-style lab timing from kvm-style production timing
 
 ## Versioning and releases
 

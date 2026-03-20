@@ -39,9 +39,50 @@ imageManagement:
   requireChecksum: true
   artifactURLTemplate: "https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersion }}/opennebula-{{ .Arch }}.qcow2"
   checksumURLTemplate: "https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersion }}/opennebula-{{ .Arch }}.qcow2.sha256"
+  importLock:
+    enabled: true
+    staleAfter: 30m
+  cache:
+    retainGenerations: 2
+    gc:
+      enabled: true
+      maxAge: 168h
   retainGenerations: 2
   pollInterval: 5s
   importTimeout: 20m
+environment:
+  profile: "production-kvm"
+placement:
+  strategy: "balanced"
+  preferKVMWhenAuto: true
+  scoring:
+    cpuHeadroomWeight: 1.0
+    memoryHeadroomWeight: 1.0
+    vmCountWeight: 0.25
+    hypervisorMatchWeight: 2.0
+    datastoreAffinityWeight: 0.5
+    environmentBiasWeight: 1.0
+policy:
+  preflight:
+    enabled: true
+    failOnWarnings: false
+    requireManualNetworkValidation: true
+  minimums:
+    vcpu: 2
+    memoryMiB: 4096
+    rootDiskGiB: 20
+  maximums:
+    vcpu: 32
+    memoryMiB: 131072
+    rootDiskGiB: 500
+  manualNetworking:
+    mode: "require-validation"
+bootstrap:
+  profile: "auto"
+  timeouts:
+    initialContact: 10m
+    ready: 20m
+    diagnosticsGrace: 2m
 placementPolicies:
   allowHostOverride: false
   allowClusterOverride: false
@@ -53,6 +94,10 @@ networkProfiles:
     networkName: "talos-prod"
     model: "virtio"
     contextMode: "auto"
+  talos-manual:
+    networkName: "talos-mgmt"
+    contextMode: "manual"
+    manualValidated: true
 storagePolicies:
   defaultDatastore: "ssd-primary"
 observability:
@@ -60,6 +105,8 @@ observability:
   metricsPath: "/metrics"
   healthPath: "/healthz"
   readyPath: "/readyz"
+explain:
+  enabled: true
 limits:
   maxVCPU: 16
   maxMemoryMiB: 65536
@@ -88,6 +135,12 @@ flavors:
 - Secrets do not belong in this file.
 - If `allowedDatastores`, `allowedNetworks`, or `allowedTemplates` are empty, the provider does not restrict them.
 - `opennebula.hypervisor: auto` prefers `kvm` and falls back to `qemu`.
+- `environment.profile` lets operators start from `lab-qemu`, `production-kvm`, or fully explicit `custom` defaults.
+- `policy.preflight` turns provider-side compatibility checks into an explicit runtime contract.
+- `placement` controls deterministic host scoring, not just allow-list based placement overrides.
+- `bootstrap.profile: auto` resolves to a qemu-friendly lab profile or a production-oriented kvm profile.
+- `networkProfiles.<name>.manualValidated` marks profiles that are approved for `networkContextMode: manual`.
+- `explain.enabled` keeps the non-mutating explainability surfaces available for operator workflows.
 - `imageNamePattern` should match the Talos image naming used in your OpenNebula image catalog.
 - `hostnameStrategy: cluster-role-sequence` is recommended when the VM name must match the Talos hostname exactly.
 - `imageManagement` turns missing-image resolution into a provider-managed import flow.
