@@ -37,14 +37,12 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile
-          target: image-omni-infra-provider-opennebula
-          push: true
-          platforms: linux/amd64
-          tags: docker.io/nudevco/omni-infra-provider-opennebula:${{ steps.version.outputs.version }}
+        env:
+          IMAGE_TAG: ${{ steps.version.outputs.version }}
+          PUSH: "true"
+          USERNAME: nudevco
+        run: |
+          make image-omni-infra-provider-opennebula IMAGE_TAG="${IMAGE_TAG}" PUSH="${PUSH}" USERNAME="${USERNAME}"
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
