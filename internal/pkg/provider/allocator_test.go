@@ -97,9 +97,9 @@ networks:
 		return machineRequest, machine, newProvisionContext(machineRequest, machine, "schem-123")
 	}
 
-	request1, machine1, pctx1 := makeWorker("worker-01", "workers-a")
-	request2, machine2, pctx2 := makeWorker("worker-02", "workers-b")
-	request3, machine3, pctx3 := makeWorker("worker-03", "workers-a")
+	request1, machine1, pctx1 := makeWorker("worker-01", "hplsvc-worker-a")
+	request2, machine2, pctx2 := makeWorker("worker-02", "hplsvc-worker-b")
+	request3, machine3, pctx3 := makeWorker("worker-03", "hplsvc-worker-a")
 
 	for idx, item := range []struct {
 		request *infrares.MachineRequest
@@ -124,7 +124,7 @@ networks:
 		t.Fatalf("releaseReservation() error = %v", err)
 	}
 
-	request4, machine4, pctx4 := makeWorker("worker-04", "workers-c")
+	request4, machine4, pctx4 := makeWorker("worker-04", "hplsvc-worker-c")
 	if err := provisioner.assignMachineUUID(ctx, zap.NewNop(), pctx4); err != nil {
 		t.Fatalf("assignMachineUUID(reuse) error = %v", err)
 	}
@@ -138,22 +138,15 @@ networks:
 	}
 }
 
-func TestResolveClusterRoleFallsBackToMachineSet(t *testing.T) {
+func TestResolveClusterRoleInfersWorkerFromMachineRequestSetID(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	state := newAllocatorTestState(ctx, t)
 	provisioner := NewProvisioner(opennebulafake.New(), testConfig(), nil, state)
 
-	machineSet := omnires.NewMachineSet("hplsvc-workers-a")
-	machineSet.Metadata().Labels().Set(omnires.LabelCluster, "HPLSVC")
-	machineSet.Metadata().Labels().Set(omnires.LabelWorkerRole, "")
-	if err := state.Create(ctx, machineSet); err != nil {
-		t.Fatalf("create machine set: %v", err)
-	}
-
 	machineRequest := infrares.NewMachineRequest("worker-01")
-	machineRequest.Metadata().Labels().Set(omnires.LabelMachineRequestSet, machineSet.Metadata().ID())
+	machineRequest.Metadata().Labels().Set(omnires.LabelMachineRequestSet, "HPLSVC-worker-a")
 	if err := state.Create(ctx, machineRequest); err != nil {
 		t.Fatalf("create machine request: %v", err)
 	}
@@ -190,6 +183,12 @@ func TestClusterRoleFromMachineRequestSet(t *testing.T) {
 		{
 			name:         "worker",
 			machineSetID: "hplsvc-workers-a",
+			clusterName:  "hplsvc",
+			role:         nodeRoleWorker,
+		},
+		{
+			name:         "current worker naming",
+			machineSetID: "hplsvc-worker-a",
 			clusterName:  "hplsvc",
 			role:         nodeRoleWorker,
 		},

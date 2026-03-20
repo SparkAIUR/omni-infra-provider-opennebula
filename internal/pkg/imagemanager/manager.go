@@ -268,15 +268,21 @@ func (m *Manager) resolveChecksum(ctx context.Context, sourceURL string, request
 		return request.ExistingChecksum, nil
 	}
 
-	if !m.config.ImageManagement.RequireChecksum && strings.TrimSpace(m.config.ImageManagement.ChecksumURLTemplate) == "" {
+	checksumTemplate := strings.TrimSpace(m.config.ImageManagement.ChecksumURLTemplate)
+	if !m.config.ImageManagement.RequireChecksum && checksumTemplate == "" {
 		return "", nil
 	}
 
-	if strings.TrimSpace(m.config.ImageManagement.ChecksumURLTemplate) == "" {
-		return "", fmt.Errorf("%w: imageManagement.checksumURLTemplate is required when requireChecksum is enabled", opennebula.ErrPolicy)
+	if checksumTemplate == "" {
+		actual, err := m.hashSource(ctx, sourceURL)
+		if err != nil {
+			return "", err
+		}
+
+		return actual, nil
 	}
 
-	checksumURL, err := m.renderURL(m.config.ImageManagement.ChecksumURLTemplate, request)
+	checksumURL, err := m.renderURL(checksumTemplate, request)
 	if err != nil {
 		return "", err
 	}
@@ -307,15 +313,21 @@ func (m *Manager) validateDownloadedChecksum(ctx context.Context, sourceURL, loc
 		return request.ExistingChecksum, nil
 	}
 
-	if !m.config.ImageManagement.RequireChecksum && strings.TrimSpace(m.config.ImageManagement.ChecksumURLTemplate) == "" {
+	checksumTemplate := strings.TrimSpace(m.config.ImageManagement.ChecksumURLTemplate)
+	if !m.config.ImageManagement.RequireChecksum && checksumTemplate == "" {
 		return "", nil
 	}
 
-	if strings.TrimSpace(m.config.ImageManagement.ChecksumURLTemplate) == "" {
-		return "", fmt.Errorf("%w: imageManagement.checksumURLTemplate is required when requireChecksum is enabled", opennebula.ErrPolicy)
+	if checksumTemplate == "" {
+		actual, err := hashFile(localPath)
+		if err != nil {
+			return "", fmt.Errorf("%w: hash staged image %q: %w", opennebula.ErrTerminal, localPath, err)
+		}
+
+		return actual, nil
 	}
 
-	checksumURL, err := m.renderURL(m.config.ImageManagement.ChecksumURLTemplate, request)
+	checksumURL, err := m.renderURL(checksumTemplate, request)
 	if err != nil {
 		return "", err
 	}
@@ -347,11 +359,14 @@ func (m *Manager) renderURL(templateBody string, request ResolveRequest) (string
 		return "", fmt.Errorf("parse image artifact template: %w", err)
 	}
 
+	talosVersionNoV := strings.TrimPrefix(strings.TrimSpace(request.TalosVersion), "v")
+
 	var builder strings.Builder
 	if err := tpl.Execute(&builder, map[string]string{
-		"Arch":         request.Arch,
-		"TalosVersion": request.TalosVersion,
-		"SchematicID":  request.SchematicID,
+		"Arch":             request.Arch,
+		"TalosVersion":     request.TalosVersion,
+		"TalosVersionNoV":  talosVersionNoV,
+		"SchematicID":      request.SchematicID,
 	}); err != nil {
 		return "", fmt.Errorf("render image artifact template: %w", err)
 	}

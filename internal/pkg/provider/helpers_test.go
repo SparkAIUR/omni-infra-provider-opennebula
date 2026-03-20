@@ -21,6 +21,24 @@ func TestCanonicalVMName(t *testing.T) {
 	}
 }
 
+func TestRenderTemplateUsesHostPassthroughCPUModel(t *testing.T) {
+	t.Parallel()
+
+	rendered := RenderTemplate(RenderInput{
+		VMName:      "test-vm",
+		Hypervisor:  "kvm",
+		ImageName:   "talos-image",
+		Datastore:   "default",
+		Resources:   ResolvedResources{CPU: "2", VCPU: 2, MemoryMiB: 4096, RootDiskGiB: 20},
+		ContextKV:   map[string]string{"SET_HOSTNAME": "test-vm"},
+		FirmwareMode:"uefi",
+	})
+
+	if !strings.Contains(rendered, "CPU_MODEL = [ MODEL = \"host-passthrough\" ]") {
+		t.Fatalf("expected host-passthrough cpu model, got %q", rendered)
+	}
+}
+
 func TestValidateProviderDataAppliesDefaults(t *testing.T) {
 	t.Parallel()
 

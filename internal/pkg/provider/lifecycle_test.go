@@ -80,6 +80,8 @@ networks:
 		t.Fatalf("expected rendered SET_HOSTNAME context, got %q", got)
 	} else if !strings.Contains(got, "HYPERVISOR = \"qemu\"") {
 		t.Fatalf("expected rendered qemu hypervisor, got %q", got)
+	} else if !strings.Contains(got, "CPU_MODEL = [ MODEL = \"host-passthrough\" ]") {
+		t.Fatalf("expected rendered host-passthrough cpu model, got %q", got)
 	}
 
 	if got, ok := pctx.MachineRequestStatus.Metadata().Labels().Get(omnires.LabelMachineInfraID); !ok || got == "" {

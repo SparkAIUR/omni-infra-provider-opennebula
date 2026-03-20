@@ -117,18 +117,7 @@ func (p *Provisioner) resolveClusterRole(ctx context.Context, machineRequest *in
 		return "", "", roleErr
 	}
 
-	machineSet, err := safe.StateGetByID[*omnires.MachineSet](ctx, p.omniState, machineSetID)
-	if err == nil {
-		if !clusterOK {
-			clusterName, clusterOK = machineSet.Metadata().Labels().Get(omnires.LabelCluster)
-		}
-
-		if roleErr != nil {
-			role, roleErr = roleFromLabels(machineSet.Metadata().Labels(), machineSet.Metadata().ID())
-		}
-	}
-
-	if (!clusterOK || roleErr != nil) && machineSetID != "" {
+	if !clusterOK || roleErr != nil {
 		inferredClusterName, inferredRole, inferErr := ClusterRoleFromMachineRequestSet(machineSetID)
 		if inferErr == nil {
 			if !clusterOK {
@@ -140,6 +129,21 @@ func (p *Provisioner) resolveClusterRole(ctx context.Context, machineRequest *in
 				role = inferredRole
 				roleErr = nil
 			}
+		}
+	}
+
+	if clusterOK && roleErr == nil {
+		return clusterName, role, nil
+	}
+
+	machineSet, err := safe.StateGetByID[*omnires.MachineSet](ctx, p.omniState, machineSetID)
+	if err == nil {
+		if !clusterOK {
+			clusterName, clusterOK = machineSet.Metadata().Labels().Get(omnires.LabelCluster)
+		}
+
+		if roleErr != nil {
+			role, roleErr = roleFromLabels(machineSet.Metadata().Labels(), machineSet.Metadata().ID())
 		}
 	}
 

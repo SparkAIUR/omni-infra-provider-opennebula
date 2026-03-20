@@ -20,6 +20,7 @@ const (
 
 	controlPlaneMachineSetSuffix = "-control-planes"
 	workerMachineSetMarker       = "-workers-"
+	workerMachineSetPrefix       = "-worker"
 )
 
 // CanonicalVMName normalizes the Omni request ID into an OpenNebula/Talos-safe name.
@@ -108,6 +109,13 @@ func ClusterRoleFromMachineRequestSet(machineRequestSetID string) (string, strin
 		return clusterName, nodeRoleControlPlane, nil
 	case strings.Contains(machineRequestSetID, workerMachineSetMarker):
 		clusterName, _, _ := strings.Cut(machineRequestSetID, workerMachineSetMarker)
+		if clusterName == "" {
+			return "", "", fmt.Errorf("machine request set %q resolves to an empty cluster name", machineRequestSetID)
+		}
+
+		return clusterName, nodeRoleWorker, nil
+	case strings.Contains(machineRequestSetID, workerMachineSetPrefix):
+		clusterName, _, _ := strings.Cut(machineRequestSetID, workerMachineSetPrefix)
 		if clusterName == "" {
 			return "", "", fmt.Errorf("machine request set %q resolves to an empty cluster name", machineRequestSetID)
 		}

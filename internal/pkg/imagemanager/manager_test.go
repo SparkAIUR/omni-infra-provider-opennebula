@@ -193,6 +193,90 @@ func TestResolveStagesCompressedRawArtifactsBeforeImport(t *testing.T) {
 	}
 }
 
+func TestResolveImportsMissingImageWithDirectHashWhenChecksumTemplateUnset(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte("talos-image-data")
+	checksum := fmt.Sprintf("%x", sha256.Sum256(payload))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/disk.qcow2":
+			_, _ = w.Write(payload)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := opennebulafake.New()
+	client.Datastores["fast-ssd"] = opennebula.DatastoreRef{ID: 31, Name: "fast-ssd"}
+
+	manager := New(client, imageConfig(server.URL+"/disk.qcow2", ""), nil)
+
+	result, err := manager.Resolve(t.Context(), ResolveRequest{
+		ImageName:    "talos-image",
+		Datastore:    "fast-ssd",
+		TalosVersion: "v1.9.0",
+		SchematicID:  "abcd1234",
+	})
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+
+	if result.Checksum != checksum {
+		t.Fatalf("expected checksum %q, got %q", checksum, result.Checksum)
+	}
+}
+
+func TestResolveStagesCompressedRawArtifactsWithDirectHashWhenChecksumTemplateUnset(t *testing.T) {
+	t.Parallel()
+
+	stagingDir := t.TempDir()
+	payload := []byte("talos-opennebula-raw-image")
+	compressed := compressZstd(t, payload)
+	checksum := fmt.Sprintf("%x", sha256.Sum256(compressed))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/opennebula-amd64.raw.zst":
+			_, _ = w.Write(compressed)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := opennebulafake.New()
+	client.Datastores["fast-ssd"] = opennebula.DatastoreRef{ID: 31, Name: "fast-ssd"}
+
+	manager := New(client, providerconfig.Config{
+		ImageManagement: providerconfig.ImageManagementConfig{
+			ImportOnMiss:        true,
+			RequireChecksum:     true,
+			ArtifactURLTemplate: server.URL + "/opennebula-amd64.raw.zst",
+			StagingDir:          stagingDir,
+		},
+		StoragePolicies: providerconfig.StoragePoliciesConfig{
+			DefaultDatastore: "fast-ssd",
+		},
+	}, nil)
+
+	result, err := manager.Resolve(t.Context(), ResolveRequest{
+		ImageName:    "talos-opennebula-image",
+		Datastore:    "fast-ssd",
+		TalosVersion: "v1.9.0",
+		SchematicID:  "abcd1234",
+	})
+	if err != nil {
+		t.Fatalf("Resolve() error = %v", err)
+	}
+
+	if result.Checksum != checksum {
+		t.Fatalf("expected checksum %q, got %q", checksum, result.Checksum)
+	}
+}
+
 func TestResolveReturnsRetryWhileImageIsImporting(t *testing.T) {
 	t.Parallel()
 
@@ -243,6 +327,29 @@ func TestResolveRejectsChecksumMismatch(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected checksum mismatch error")
+	}
+}
+
+func TestRenderURLSupportsTalosVersionNoV(t *testing.T) {
+	t.Parallel()
+
+	manager := New(opennebulafake.New(), imageConfig("unused", "unused"), nil)
+
+	url, err := manager.renderURL(
+		"https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersionNoV }}/opennebula-{{ .Arch }}.qcow2",
+		ResolveRequest{
+			Arch:         "amd64",
+			TalosVersion: "v1.12.5",
+			SchematicID:  "schematic-123",
+		},
+	)
+	if err != nil {
+		t.Fatalf("renderURL() error = %v", err)
+	}
+
+	expected := "https://factory.talos.dev/image/schematic-123/1.12.5/opennebula-amd64.qcow2"
+	if url != expected {
+		t.Fatalf("expected %q, got %q", expected, url)
 	}
 }
 
