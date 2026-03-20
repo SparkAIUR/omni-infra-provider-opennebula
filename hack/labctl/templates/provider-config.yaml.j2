@@ -1,0 +1,49 @@
+providerID: {{ config.provider.config.providerID }}
+opennebula:
+  endpoint: "{{ config.provider.config.endpoint }}"
+  templateName: "{{ config.provider.config.templateName }}"
+  allowedTemplates:
+    - "{{ config.provider.config.templateName }}"
+  allowedDatastores:
+{% for datastore in config.provider.config.allowedDatastores %}
+    - "{{ datastore }}"
+{% endfor %}
+  allowedNetworks:
+{% for network in config.provider.config.allowedNetworks %}
+    - "{{ network }}"
+{% endfor %}
+  imageNamePattern: "talos-opennebula-{{ '{{ .Arch }}' }}-{{ '{{ .TalosVersion }}' }}-schematic-{{ '{{ .SchematicID }}' }}"
+defaults:
+  flavor: "small"
+  firmware: "bios"
+  secureBoot: false
+  graphicsEnabled: false
+  networkContextMode: "auto"
+  hostnameStrategy: "{{ config.provider.config.hostnameStrategy }}"
+features:
+  allowExplicitResources: {{ "true" if config.provider.config.allowExplicitResources else "false" }}
+  enableGPU: false
+  hardDelete: true
+imageManagement:
+  importOnMiss: {{ "true" if config.provider.config.importOnMiss else "false" }}
+  requireChecksum: {{ "true" if config.provider.config.requireChecksum else "false" }}
+  artifactURLTemplate: "{{ config.provider.config.artifactURLTemplate }}"
+  checksumURLTemplate: ""
+  stagingDir: "/var/tmp/omni-infra-provider-opennebula/images"
+storagePolicies:
+  defaultDatastore: "{{ config.provider.config.defaultDatastore }}"
+networkProfiles:
+  talos-auto:
+    networkName: "talos-stage-auto"
+    model: "virtio"
+    contextMode: "auto"
+  talos-manual:
+    networkName: "talos-stage-manual"
+    model: "virtio"
+    contextMode: "manual"
+observability:
+  listenAddress: ":9977"
+  metricsPath: "/metrics"
+  healthPath: "/healthz"
+  readyPath: "/readyz"
+

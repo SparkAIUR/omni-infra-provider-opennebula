@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cat <<'INFO'
+Bootstrap Ceph on {{ config.nodes.frontend.hostname }} using:
+- raw OSD device: {{ config.ceph.rawOsdDevice }}
+- MONs: {{ config.ceph.mons | join(', ') }}
+- RBD pools: {{ config.ceph.pools.rbd | join(', ') }}
+- CephFS: {{ config.ceph.pools.cephfs.fsName }}
+INFO
+

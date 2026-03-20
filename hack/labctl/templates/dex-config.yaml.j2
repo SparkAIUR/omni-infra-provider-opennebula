@@ -1,0 +1,23 @@
+issuer: {{ config.dex.publicURL }}
+storage:
+  type: sqlite3
+  config:
+    file: /var/lib/dex/dex.db
+web:
+  http: 127.0.0.1:5556
+staticPasswords:
+  - email: {{ config.dex.email }}
+    hashFromEnv: DEX_STATIC_PASSWORD_HASH
+    username: {{ config.dex.username }}
+    userID: admin
+staticClients:
+{% for client in config.dex.staticClients %}
+  - id: {{ client.id }}
+    name: {{ client.id }}
+    secretEnv: DEX_CLIENT_SECRET_{{ client.id | upper | replace('-', '_') }}
+    redirectURIs:
+{% for uri in client.redirectURIs %}
+      - {{ uri }}
+{% endfor %}
+{% endfor %}
+

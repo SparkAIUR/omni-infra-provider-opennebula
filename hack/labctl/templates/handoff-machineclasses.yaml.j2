@@ -1,0 +1,46 @@
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: {{ config.handoffCluster.machineClassPrefix }}-cp
+spec:
+  autoprovision:
+    providerid: {{ config.omni.providerID }}
+    providerdata: |
+      schemaVersion: v1alpha1
+      flavor: small
+      templateName: {{ config.opennebula.template.name }}
+      datastore: {{ config.handoffCluster.preferredDatastore }}
+      networks:
+        - name: talos-stage-auto
+      networkContextMode: auto
+      graphics:
+        enabled: false
+      rootDiskGiB: {{ config.handoffCluster.rootDiskGiB }}
+      kernelArgs:
+{% if config.handoffCluster.grpcTunnelKernelArg %}
+        - siderolink.api=grpc_tunnel=true
+{% endif %}
+---
+metadata:
+  namespace: default
+  type: MachineClasses.omni.sidero.dev
+  id: {{ config.handoffCluster.machineClassPrefix }}-worker
+spec:
+  autoprovision:
+    providerid: {{ config.omni.providerID }}
+    providerdata: |
+      schemaVersion: v1alpha1
+      flavor: small
+      templateName: {{ config.opennebula.template.name }}
+      datastore: {{ config.handoffCluster.preferredDatastore }}
+      networks:
+        - name: talos-stage-auto
+      networkContextMode: auto
+      graphics:
+        enabled: false
+      rootDiskGiB: {{ config.handoffCluster.rootDiskGiB }}
+      kernelArgs:
+{% if config.handoffCluster.grpcTunnelKernelArg %}
+        - siderolink.api=grpc_tunnel=true
+{% endif %}
+

@@ -1,0 +1,99 @@
+---
+title: Staging Lab Rebuild
+description: Rebuild the multi-node OpenNebula staging lab from a single YAML config with labctl.
+---
+
+# Staging lab rebuild
+
+`labctl` is the repo-local automation entrypoint for recreating the Gen2 staging lab described in the internal rebuild notes.
+
+This runbook documents the operator-facing workflow only. Keep lab-specific secrets and non-public findings out of `docs/`.
+
+## Tool location
+
+- package: `hack/labctl`
+- example config: `hack/labctl/examples/staging-lab.config.example.yaml`
+- entrypoint:
+
+```bash
+uv run --project hack/labctl labctl --config ~/staging-lab.yaml plan
+```
+
+## Supported phases
+
+1. `spot-provision`
+2. `host-bootstrap`
+3. `network-overlay`
+4. `ceph`
+5. `opennebula`
+6. `dex`
+7. `omni`
+8. `dns-tls`
+9. `provider`
+10. `validation`
+11. `handoff-cluster`
+
+## Common flows
+
+Print the phase plan:
+
+```bash
+uv run --project hack/labctl labctl --config ~/staging-lab.yaml plan
+```
+
+Run the full rebuild:
+
+```bash
+uv run --project hack/labctl labctl --config ~/staging-lab.yaml run
+```
+
+Resume after a failure:
+
+```bash
+uv run --project hack/labctl labctl --config ~/staging-lab.yaml resume
+```
+
+Rerun provider deployment only:
+
+```bash
+uv run --project hack/labctl labctl --config ~/staging-lab.yaml phase provider --force
+```
+
+Collect artifacts after validation:
+
+```bash
+uv run --project hack/labctl labctl --config ~/staging-lab.yaml collect-artifacts
+```
+
+## Config model
+
+The config is a single local YAML file. It includes:
+
+- lab paths and state directories
+- Rackspace Spot settings
+- node inventory
+- guest overlay settings
+- Ceph, OpenNebula, Dex, Omni, DNS, and TLS settings
+- provider runtime config and secrets
+- `hplcsi` recreation defaults
+
+Use the shipped example as the starting point and replace all placeholder secrets before execution.
+
+## Existing helper reuse
+
+`labctl` reuses the existing repo-local wrappers where they already match the validated lab workflow:
+
+- `.assh/scripts/bootstrap-dns.sh`
+- `.assh/scripts/bootstrap-onebr1-systemd.sh`
+- `.assh/scripts/bootstrap-provider.sh`
+- `.assh/scripts/run-provider-e2e.sh`
+- `.assh/scripts/collect-staging-artifacts.sh`
+
+## Rackspace Spot support
+
+Rackspace Spot integration is optional.
+
+When `rackspace.enabled=true`, `labctl` expects `rsspot` to be importable in the active Python environment. This lets the rebuild workflow include Spot node reconciliation before host bootstrap starts.
+
+`rsvm-omni-controller` is intentionally not part of the staging stack rebuild path.
+

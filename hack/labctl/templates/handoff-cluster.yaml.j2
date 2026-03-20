@@ -1,0 +1,26 @@
+features:
+  diskEncryption: false
+kind: Cluster
+kubernetes:
+  version: {{ config.handoffCluster.kubernetesVersion }}
+name: {{ config.handoffCluster.name }}
+talos:
+  version: {{ config.handoffCluster.talosVersion }}
+---
+kind: ControlPlane
+machineClass:
+  name: {{ config.handoffCluster.machineClassPrefix }}-cp
+  size: {{ config.handoffCluster.controlPlanes }}
+patches:
+  - name: grpc-tunnel
+    inline:
+      machine:
+        features:
+          grpcTunnel: {{ "true" if config.handoffCluster.grpcTunnelKernelArg else "false" }}
+---
+kind: Workers
+name: worker
+machineClass:
+  name: {{ config.handoffCluster.machineClassPrefix }}-worker
+  size: {{ config.handoffCluster.workers }}
+

@@ -32,6 +32,9 @@
 - The Talos OpenNebula platform uses `SET_HOSTNAME`, not `HOSTNAME`, for hostname configuration.
 - The single-host validated compatibility set is Omni `1.6.0`, Talos `1.12.4`, OpenNebula `7.0.1`, and software-emulated qemu with a `Westmere` CPU model override.
 - `networkContextMode: manual` remains unvalidated on that exact lab even when the provider emits the documented Talos OpenNebula manual context.
+- The staging lab rebuild automation now lives under `hack/labctl/` as a typed Python CLI with phase state persisted under `.out/labctl/.../state.json`.
+- `labctl` intentionally reuses the existing `.assh` DNS, VXLAN, provider bootstrap, and artifact helpers rather than replacing them with a second shell surface.
+- Rackspace Spot integration for staging rebuilds is optional and expects `rsspot` to be importable when enabled; `rsvm-omni-controller` is intentionally not part of the stack bootstrap path.
 
 ## To update as work progresses
 

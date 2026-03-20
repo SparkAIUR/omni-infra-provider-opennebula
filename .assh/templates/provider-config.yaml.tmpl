@@ -2,6 +2,8 @@ providerID: opennebula
 opennebula:
   endpoint: "__ONE_ENDPOINT__"
   templateName: "__ONE_TEMPLATE_NAME__"
+  allowedTemplates:
+    - "__ONE_TEMPLATE_NAME__"
   allowedDatastores:
 __ONE_ALLOWED_DATASTORES__
   allowedNetworks:
@@ -9,22 +11,59 @@ __ONE_ALLOWED_NETWORKS__
   imageNamePattern: "talos-opennebula-{{ .Arch }}-{{ .TalosVersion }}-schematic-{{ .SchematicID }}"
 defaults:
   flavor: "small"
-  firmware: "uefi"
-  secureBoot: true
+  firmware: "bios"
+  secureBoot: false
   graphicsEnabled: false
   networkContextMode: "auto"
-  hostnameStrategy: "vm-name"
+  hostnameStrategy: "cluster-role-sequence"
 features:
   allowExplicitResources: true
   enableGPU: false
-  hardDelete: false
+  hardDelete: true
 timeouts:
-  instantiate: 2m
-  vmReady: 10m
+  instantiate: 3m
+  vmReady: 20m
   terminate: 5m
+imageManagement:
+  importOnMiss: true
+  requireChecksum: true
+  artifactURLTemplate: "https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersionNoV }}/opennebula-{{ .Arch }}.qcow2"
+  checksumURLTemplate: ""
+  stagingDir: "/var/tmp/omni-infra-provider-opennebula/images"
+  retainGenerations: 2
+  pollInterval: 10s
+  importTimeout: 40m
+  cleanupOnDelete: false
+storagePolicies:
+  defaultDatastore: "__ONE_DEFAULT_DATASTORE__"
+networkProfiles:
+  talos-auto:
+    networkName: "talos-stage-auto"
+    model: "virtio"
+    contextMode: "auto"
+  talos-manual:
+    networkName: "talos-stage-manual"
+    model: "virtio"
+    contextMode: "manual"
+observability:
+  listenAddress: ":9977"
+  metricsPath: "/metrics"
+  healthPath: "/healthz"
+  readyPath: "/readyz"
+limits:
+  maxVCPU: 16
+  maxMemoryMiB: 32768
+  maxRootDiskGiB: 200
+  maxAdditionalDisks: 4
+  maxAdditionalDiskGiB: 200
 flavors:
   small:
     cpu: "2"
     vcpu: 2
     memoryMiB: 4096
     rootDiskGiB: 40
+  medium:
+    cpu: "4"
+    vcpu: 4
+    memoryMiB: 8192
+    rootDiskGiB: 60

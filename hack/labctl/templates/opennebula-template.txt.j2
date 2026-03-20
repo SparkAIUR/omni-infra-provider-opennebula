@@ -1,0 +1,12 @@
+NAME = "{{ config.opennebula.template.name }}"
+CPU = "2"
+VCPU = "2"
+MEMORY = "4096"
+HYPERVISOR = "{{ config.opennebula.forceHypervisor }}"
+GRAPHICS = [ TYPE = "none" ]
+NIC = [ MODEL = "{{ config.opennebula.template.nicModel }}" ]
+CONTEXT = [
+  NETWORK = "YES",
+  SET_HOSTNAME = "$NAME"
+]
+

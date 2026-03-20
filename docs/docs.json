@@ -43,7 +43,8 @@
     {
       "group": "Runbooks",
       "pages": [
-        "runbooks/smoke-test"
+        "runbooks/smoke-test",
+        "runbooks/staging-lab-rebuild"
       ]
     }
   ]

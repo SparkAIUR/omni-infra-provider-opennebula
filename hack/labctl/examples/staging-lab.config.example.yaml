@@ -1,0 +1,237 @@
+schemaVersion: v1alpha1
+
+lab:
+  name: gen2-staging
+  stateDir: .out/labctl/gen2-staging
+  workspaceDir: .out/labctl/gen2-staging/work
+  logDir: .out/labctl/gen2-staging/logs
+
+rackspace:
+  enabled: false
+  rsspotConfigPath: /Users/me/.config/rsspot/config.yaml
+  profile: default
+  region: us-central-dfw-1
+  sshPublicKeyPath: /Users/me/.ssh/id_ed25519.pub
+  nodeRequests:
+    frontend:
+      name: lab-fe-01
+      count: 1
+      serverClassConstraints:
+        generation: 2
+        minVcpu: 8
+        minMemoryGiB: 16
+    hypervisors:
+      - name: lab-hv-01
+        generation: 2
+        minVcpu: 8
+        minMemoryGiB: 16
+      - name: lab-hv-02
+        generation: 2
+        minVcpu: 8
+        minMemoryGiB: 16
+
+nodes:
+  frontend:
+    hostname: lab-fe-01
+    publicIP: 50.56.158.179
+    privateIP: 10.0.2.224
+    sshUser: root
+    sshPort: 22
+    roles: [frontend, hypervisor, ceph, omni, dex, provider, nginx]
+  hypervisors:
+    - hostname: lab-hv-01
+      publicIP: 50.56.158.126
+      privateIP: 10.0.1.167
+      sshUser: root
+    - hostname: lab-hv-02
+      publicIP: 50.56.159.19
+      privateIP: 10.0.3.200
+      sshUser: root
+
+networking:
+  underlayInterface: enp3s0
+  guestBridge: onebr1
+  guestVXLANDevice: vxlan-onebr1
+  guestSubnet: 172.22.0.0/24
+  guestGatewayCIDR: 172.22.0.1/24
+  guestLeaseStart: 172.22.0.100
+  guestMTU: 1450
+  vxlanVni: 422
+  natCIDR: 172.22.0.0/24
+  openPublicPortsFrontend: [22, 80, 443, 8090, 8100]
+  openPublicPortsHypervisors: [22]
+
+ceph:
+  enabled: true
+  versionChannel: squid
+  rawOsdDevice: /dev/vdb
+  fsid: ""
+  publicNetworkCIDR: 10.0.0.0/8
+  clusterNetworkCIDR: 10.0.0.0/8
+  mons:
+    - lab-fe-01
+    - lab-hv-01
+    - lab-hv-02
+  mgrActive: lab-fe-01
+  mgrStandby: lab-hv-01
+  mdsCount: 2
+  pools:
+    rbd:
+      - one-images
+      - one-system
+      - one-csi
+    cephfs:
+      metadataPool: one-cephfs-meta
+      dataPool: one-cephfs-data
+      fsName: one-cephfs
+      subvolumeGroup: csi
+  replication:
+    size: 3
+    minSize: 2
+
+opennebula:
+  version: 7.0.1
+  publicURL: https://on.lab.sparkdevops.com
+  rpcEndpoint: http://127.0.0.1:2633/RPC2
+  oneadminUser: oneadmin
+  oneadminPassword: CHANGE_ME_ONEADMIN_PASSWORD
+  serveradminSecretMode: rotate
+  clusterName: staging
+  hosts:
+    - lab-fe-01
+    - lab-hv-01
+    - lab-hv-02
+  forceHypervisor: qemu
+  template:
+    name: talos-omni-base
+    hostnameMode: SET_HOSTNAME
+    nicModel: virtio
+    graphicsEnabled: false
+  datastores:
+    - name: default
+      kind: image
+      backend: local
+    - name: one-csi-local
+      kind: system
+      backend: local
+    - name: ceph-images
+      kind: image
+      backend: ceph-rbd
+      pool: one-images
+    - name: ceph-system
+      kind: system
+      backend: ceph-rbd
+      pool: one-system
+    - name: one-csi
+      kind: system
+      backend: ceph-rbd
+      pool: one-csi
+    - name: one-csi-cephfs
+      kind: file
+      backend: cephfs
+      fsName: one-cephfs
+  networks:
+    - name: talos-stage-auto
+      mode: auto
+      bridge: onebr1
+      mtu: 1450
+      networkCIDR: 172.22.0.0/24
+      leaseStart: 172.22.0.100
+    - name: talos-stage-manual
+      mode: manual
+      bridge: onebr1
+      mtu: 1450
+
+dex:
+  publicURL: https://dex.on.lab.sparkdevops.com
+  username: sparkaiur
+  email: admin@sparkdevops.com
+  password: CHANGE_ME_DEX_PASSWORD
+  staticClients:
+    - id: omni
+      secret: CHANGE_ME_DEX_OMNI_CLIENT_SECRET
+      redirectURIs:
+        - https://omni.on.lab.sparkdevops.com/auth/callback
+
+omni:
+  version: 1.6.0
+  publicURL: https://omni.on.lab.sparkdevops.com
+  machineAPIURL: https://omni.on.lab.sparkdevops.com:8090/
+  workloadProxyURL: https://omni.on.lab.sparkdevops.com:8100/
+  grpcTunnel: true
+  providerID: opennebula
+  adminEnvPath: /root/.config/omni/admin.env
+  serviceAccount:
+    name: opennebula-provider
+    key: CHANGE_ME_OMNI_SERVICE_ACCOUNT_KEY
+  oidc:
+    issuerURL: https://dex.on.lab.sparkdevops.com
+    clientID: omni
+    clientSecret: CHANGE_ME_OMNI_OIDC_CLIENT_SECRET
+
+dns:
+  provider: cloudflare
+  zone: sparkdevops.com
+  cloudflareToken: CHANGE_ME_CLOUDFLARE_TOKEN
+  records:
+    - on.lab.sparkdevops.com
+    - omni.on.lab.sparkdevops.com
+    - dex.on.lab.sparkdevops.com
+
+tls:
+  mode: letsencrypt-dns01-cloudflare
+  email: admin@sparkdevops.com
+  storagePath: /var/lib/acme
+  certificateNames:
+    - on.lab.sparkdevops.com
+    - omni.on.lab.sparkdevops.com
+    - dex.on.lab.sparkdevops.com
+
+provider:
+  deployMode: systemd
+  workingDir: /opt/omni-provider-opennebula
+  binaryMode: container
+  image: docker.io/nudevco/omni-infra-provider-opennebula:latest
+  env:
+    OMNI_ENDPOINT: https://omni.on.lab.sparkdevops.com
+    OMNI_SERVICE_ACCOUNT_KEY: CHANGE_ME_OMNI_SERVICE_ACCOUNT_KEY
+    OPENNEBULA_USERNAME: oneadmin
+    OPENNEBULA_PASSWORD: CHANGE_ME_ONEADMIN_PASSWORD
+  config:
+    providerID: opennebula
+    endpoint: http://127.0.0.1:2633/RPC2
+    templateName: talos-omni-base
+    hypervisor: qemu
+    hostnameStrategy: cluster-role-sequence
+    importOnMiss: true
+    requireChecksum: true
+    defaultDatastore: default
+    allowedDatastores: [default, one-csi-local, ceph-images, ceph-system, one-csi, one-csi-cephfs]
+    allowedNetworks: [talos-stage-auto, talos-stage-manual]
+    allowExplicitResources: true
+    artifactURLTemplate: https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersion }}/opennebula-{{ .Arch }}.qcow2
+
+handoffCluster:
+  enabled: true
+  name: hplcsi
+  talosVersion: v1.12.5
+  kubernetesVersion: v1.34.5
+  controlPlanes: 1
+  workers: 1
+  rootDiskGiB: 20
+  preferredDatastore: one-csi-local
+  machineClassPrefix: opennebula-stage
+  grpcTunnelKernelArg: true
+
+validation:
+  failFast: true
+  collectArtifactsOnFailure: true
+
+ssh:
+  privateKeyPath: /Users/me/.ssh/id_ed25519
+  strictHostKeyChecking: accept-new
+  connectTimeoutSeconds: 10
+
+artifacts:
+  outputDir: .out/labctl/gen2-staging/artifacts
+

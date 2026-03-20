@@ -1,0 +1,2 @@
+"""Staging lab rebuild automation."""
+

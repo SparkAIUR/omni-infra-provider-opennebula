@@ -6,6 +6,7 @@ TEMPLATE="${SCRIPT_DIR}/../templates/provider-config.yaml.tmpl"
 
 : "${ONE_ENDPOINT:?set ONE_ENDPOINT}"
 : "${ONE_TEMPLATE_NAME:?set ONE_TEMPLATE_NAME}"
+: "${ONE_DEFAULT_DATASTORE:?set ONE_DEFAULT_DATASTORE}"
 : "${ONE_ALLOWED_NETWORKS:=}"
 : "${ONE_ALLOWED_DATASTORES:=}"
 
@@ -28,6 +29,7 @@ output = (
     template
     .replace("__ONE_ENDPOINT__", os.environ["ONE_ENDPOINT"])
     .replace("__ONE_TEMPLATE_NAME__", os.environ["ONE_TEMPLATE_NAME"])
+    .replace("__ONE_DEFAULT_DATASTORE__", os.environ["ONE_DEFAULT_DATASTORE"])
     .replace("__ONE_ALLOWED_NETWORKS__", block(networks))
     .replace("__ONE_ALLOWED_DATASTORES__", block(datastores))
 )

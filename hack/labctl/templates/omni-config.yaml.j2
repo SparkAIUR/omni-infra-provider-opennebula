@@ -1,0 +1,23 @@
+account:
+  name: {{ config.lab.name }}
+auth:
+  oidc:
+    enabled: true
+    providerURL: {{ config.omni.oidc.issuerURL }}
+    clientID: {{ config.omni.oidc.clientID }}
+    clientSecret: {{ config.omni.oidc.clientSecret }}
+    scopes:
+      - openid
+      - profile
+      - email
+services:
+  api:
+    advertisedURL: {{ config.omni.publicURL }}
+  machineAPI:
+    advertisedURL: {{ config.omni.machineAPIURL }}
+  workloadProxy:
+    enabled: true
+    advertisedURL: {{ config.omni.workloadProxyURL }}
+  siderolink:
+    useGRPCTunnel: {{ "true" if config.omni.grpcTunnel else "false" }}
+
