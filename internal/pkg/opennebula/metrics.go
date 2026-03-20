@@ -55,6 +55,12 @@ func (c *instrumentedClient) LookupNetworksByName(ctx context.Context, names []s
 	})
 }
 
+func (c *instrumentedClient) ResolveHypervisor(ctx context.Context, request HypervisorResolveRequest) (string, error) {
+	return observe(c, "resolve_hypervisor", func() (string, error) {
+		return c.inner.ResolveHypervisor(ctx, request)
+	})
+}
+
 func (c *instrumentedClient) CreateImage(ctx context.Context, request CreateImageRequest) (ImageRef, error) {
 	return observe(c, "create_image", func() (ImageRef, error) {
 		return c.inner.CreateImage(ctx, request)

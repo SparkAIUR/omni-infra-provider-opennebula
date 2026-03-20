@@ -84,7 +84,12 @@ func (p *Provisioner) createSchematic(ctx context.Context, logger *zap.Logger, p
 			return nil
 		}
 
-		schematicID, err := pctx.GenerateSchematicID(ctx, logger)
+		schematicID, err := pctx.GenerateSchematicID(
+			ctx,
+			logger,
+			provision.WithoutConnectionParams(),
+			provision.WithExtraKernelArgs(pctx.ConnectionParams.KernelArgs...),
+		)
 		if err != nil {
 			SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassRetryable))
 			return p.retryError("createSchematic", 10*time.Second, "generate schematic: %w", err)
@@ -183,6 +188,13 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 		}
 
 		hostname := pctx.State.TypedSpec().Value.VmName
+		hypervisor, err := p.resolveHypervisor(ctx)
+		if err != nil {
+			SetLastError(pctx.State, err.Error())
+			SetLastRetryClassification(pctx.State, string(opennebula.ClassifyError(err)))
+			return p.clientError("instantiateVM", "resolve hypervisor", err)
+		}
+
 		contextKV := map[string]string{
 			"SET_HOSTNAME": hostname,
 		}
@@ -220,6 +232,7 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 		rendered := RenderTemplate(RenderInput{
 			VMName:          hostname,
 			MachineUUID:     GetMachineUUID(pctx.State),
+			Hypervisor:      hypervisor,
 			ImageName:       imageResult.Image.Name,
 			Datastore:       data.Datastore,
 			Resources:       resolvedResources,
@@ -288,16 +301,88 @@ func (p *Provisioner) waitForVM(ctx context.Context, _ *zap.Logger, pctx provisi
 			return p.clientError("waitForVM", "get vm", err)
 		}
 
-		if strings.EqualFold(vmInfo.LCMState, "RUNNING") || strings.EqualFold(vmInfo.State, "ACTIVE") {
+		if vmIsRunning(vmInfo) {
 			SetPhase(pctx.State, "vm_running")
 			SetLastError(pctx.State, "")
 			SetLastRetryClassification(pctx.State, "")
 			return nil
 		}
 
+		if vmReachedFailureState(vmInfo) {
+			err = fmt.Errorf("%w: vm %d reached non-running state=%s lcm=%s", opennebula.ErrTerminal, vmID, vmInfo.State, vmInfo.LCMState)
+			SetLastError(pctx.State, err.Error())
+			SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassTerminal))
+
+			return err
+		}
+
 		SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassRetryable))
 		return p.retryError("waitForVM", 10*time.Second, "vm %d not running yet (state=%s lcm=%s)", vmID, vmInfo.State, vmInfo.LCMState)
 	})
+}
+
+func (p *Provisioner) resolveHypervisor(ctx context.Context) (string, error) {
+	switch p.config.OpenNebula.Hypervisor {
+	case "", providerconfig.HypervisorAuto:
+		return p.client.ResolveHypervisor(ctx, opennebula.HypervisorResolveRequest{
+			ResourcePool: p.config.OpenNebula.ResourcePool,
+		})
+	case providerconfig.HypervisorKVM, providerconfig.HypervisorQEMU:
+		return p.config.OpenNebula.Hypervisor, nil
+	default:
+		return "", fmt.Errorf("%w: unsupported hypervisor %q", opennebula.ErrPolicy, p.config.OpenNebula.Hypervisor)
+	}
+}
+
+func vmIsRunning(info opennebula.VMInfo) bool {
+	return strings.EqualFold(normalizeState(info.State), "ACTIVE") &&
+		strings.EqualFold(normalizeState(info.LCMState), "RUNNING")
+}
+
+func vmReachedFailureState(info opennebula.VMInfo) bool {
+	state := normalizeState(info.State)
+	lcmState := normalizeState(info.LCMState)
+
+	if state == "DONE" || state == "FAILED" {
+		return true
+	}
+
+	switch lcmState {
+	case
+		"UNKNOWN",
+		"BOOT_FAILURE",
+		"BOOT_MIGRATE_FAILURE",
+		"PROLOG_FAILURE",
+		"PROLOG_MIGRATE_FAILURE",
+		"PROLOG_RESUME_FAILURE",
+		"EPILOG_FAILURE",
+		"EPILOG_STOP_FAILURE",
+		"EPILOG_UNDEPLOY_FAILURE",
+		"EPILOG_UNDEPLOY_FAILURE_STOP",
+		"EPILOG_UNDEPLOY_FAILURE_DELETE",
+		"EPILOG_DELETE_FAILURE",
+		"HOTPLUG_FAILURE",
+		"HOTPLUG_SNAPSHOT_FAILURE",
+		"HOTPLUG_NIC_FAILURE",
+		"HOTPLUG_SAVEAS_FAILURE",
+		"HOTPLUG_SAVEAS_POWEROFF_FAILURE",
+		"HOTPLUG_SAVEAS_SUSPENDED_FAILURE",
+		"DISK_SNAPSHOT_FAILURE",
+		"DISK_SNAPSHOT_DELETE_FAILURE",
+		"DISK_SNAPSHOT_REVERT_FAILURE",
+		"DISK_RESIZE_FAILURE",
+		"DISK_ATTACH_FAILURE",
+		"DISK_DETACH_FAILURE",
+		"NIC_ATTACH_FAILURE",
+		"NIC_DETACH_FAILURE",
+		"DISK_SNAPSHOT_SUSPENDED_FAILURE",
+		"DISK_SNAPSHOT_DELETE_POWEROFF",
+		"DISK_SNAPSHOT_DELETE_SUSPENDED",
+		"CLEANUP_RESUBMIT":
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *Provisioner) resolveRequest(ctx context.Context, pctx provision.Context[*resources.Machine]) (ProviderData, ResolvedResources, error) {

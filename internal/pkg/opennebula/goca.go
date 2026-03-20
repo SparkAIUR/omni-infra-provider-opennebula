@@ -111,6 +111,40 @@ func (c *GOCAClient) LookupNetworksByName(ctx context.Context, names []string) (
 	return refs, nil
 }
 
+// ResolveHypervisor resolves the supported hypervisor from eligible OpenNebula hosts.
+func (c *GOCAClient) ResolveHypervisor(ctx context.Context, request HypervisorResolveRequest) (string, error) {
+	hostPool, err := c.controller.Hosts().InfoContext(ctx)
+	if err != nil {
+		return "", fmt.Errorf("list hosts: %w", err)
+	}
+
+	foundQEMU := false
+
+	for _, host := range hostPool.Hosts {
+		if request.ResourcePool != "" && !strings.EqualFold(host.Cluster, request.ResourcePool) {
+			continue
+		}
+
+		switch strings.ToLower(strings.TrimSpace(host.VMMAD)) {
+		case "kvm":
+			return "kvm", nil
+		case "qemu":
+			foundQEMU = true
+		}
+	}
+
+	if foundQEMU {
+		return "qemu", nil
+	}
+
+	scope := "eligible hosts"
+	if request.ResourcePool != "" {
+		scope = fmt.Sprintf("eligible hosts in resourcePool %q", request.ResourcePool)
+	}
+
+	return "", fmt.Errorf("%w: neither kvm nor qemu was found on %s", ErrPolicy, scope)
+}
+
 // CreateImage imports an image into an OpenNebula datastore.
 func (c *GOCAClient) CreateImage(ctx context.Context, request CreateImageRequest) (ImageRef, error) {
 	if request.Driver == "" {

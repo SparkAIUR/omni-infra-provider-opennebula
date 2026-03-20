@@ -295,6 +295,7 @@ func TestRenderTemplateAndRedaction(t *testing.T) {
 	rendered := RenderTemplate(RenderInput{
 		VMName:          "worker-01",
 		MachineUUID:     "123e4567-e89b-12d3-a456-426614174000",
+		Hypervisor:      "qemu",
 		ImageName:       "talos-image",
 		Datastore:       "fast-ssd",
 		Resources:       ResolvedResources{CPU: "2", VCPU: 2, MemoryMiB: 4096, RootDiskGiB: 40},
@@ -323,6 +324,10 @@ func TestRenderTemplateAndRedaction(t *testing.T) {
 
 	if !strings.Contains(rendered, "NETWORK = \"NO\"") {
 		t.Fatalf("expected NETWORK context, got %q", rendered)
+	}
+
+	if !strings.Contains(rendered, "HYPERVISOR = \"qemu\"") {
+		t.Fatalf("expected hypervisor rendering, got %q", rendered)
 	}
 
 	if !strings.Contains(rendered, "ETH0_MASK = \"255.255.255.0\"") {

@@ -18,6 +18,12 @@ import (
 const (
 	// ProviderID is the only supported provider identifier for this repository.
 	ProviderID = "opennebula"
+	// HypervisorAuto detects the supported hypervisor from OpenNebula hosts.
+	HypervisorAuto = "auto"
+	// HypervisorKVM forces KVM for instantiated VMs.
+	HypervisorKVM = "kvm"
+	// HypervisorQEMU forces qemu for instantiated VMs.
+	HypervisorQEMU = "qemu"
 	// HostnameStrategyVMName keeps the legacy request-id based naming behavior.
 	HostnameStrategyVMName = "vm-name"
 	// HostnameStrategyClusterRoleSequence derives names from cluster name, role, and sequence.
@@ -58,6 +64,7 @@ type Config struct {
 type OpenNebulaConfig struct {
 	Endpoint          string   `yaml:"endpoint"`
 	TemplateName      string   `yaml:"templateName"`
+	Hypervisor        string   `yaml:"hypervisor,omitempty"`
 	ResourcePool      string   `yaml:"resourcePool,omitempty"`
 	AllowedTemplates  []string `yaml:"allowedTemplates,omitempty"`
 	AllowedDatastores []string `yaml:"allowedDatastores,omitempty"`
@@ -187,6 +194,10 @@ func (cfg *Config) applyDefaults() {
 		cfg.OpenNebula.ImageNamePattern = "talos-opennebula-{{ .Arch }}-{{ .TalosVersion }}-schematic-{{ .SchematicID }}"
 	}
 
+	if cfg.OpenNebula.Hypervisor == "" {
+		cfg.OpenNebula.Hypervisor = HypervisorAuto
+	}
+
 	if cfg.Defaults.Firmware == "" {
 		cfg.Defaults.Firmware = "uefi"
 	}
@@ -276,6 +287,12 @@ func (cfg Config) Validate() error {
 
 	if cfg.OpenNebula.TemplateName == "" {
 		return errors.New("opennebula.templateName is required")
+	}
+
+	switch cfg.OpenNebula.Hypervisor {
+	case HypervisorAuto, HypervisorKVM, HypervisorQEMU:
+	default:
+		return fmt.Errorf("opennebula.hypervisor must be %q, %q, or %q", HypervisorAuto, HypervisorKVM, HypervisorQEMU)
 	}
 
 	if cfg.Defaults.Firmware != "uefi" && cfg.Defaults.Firmware != "bios" {

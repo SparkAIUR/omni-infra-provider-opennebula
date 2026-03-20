@@ -31,6 +31,10 @@ flavors:
 		t.Fatal("expected default image name pattern")
 	}
 
+	if cfg.OpenNebula.Hypervisor != HypervisorAuto {
+		t.Fatalf("expected default hypervisor %q, got %q", HypervisorAuto, cfg.OpenNebula.Hypervisor)
+	}
+
 	if cfg.Defaults.Firmware != "uefi" {
 		t.Fatalf("expected default firmware uefi, got %q", cfg.Defaults.Firmware)
 	}
@@ -91,6 +95,33 @@ flavors:
 	}
 }
 
+func TestLoadAcceptsExplicitHypervisor(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Load(strings.NewReader(`
+providerID: opennebula
+opennebula:
+  endpoint: https://one.example.com/RPC2
+  templateName: talos-base
+  hypervisor: kvm
+defaults:
+  flavor: small
+flavors:
+  small:
+    cpu: "2"
+    vcpu: 2
+    memoryMiB: 4096
+    rootDiskGiB: 40
+`))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.OpenNebula.Hypervisor != HypervisorKVM {
+		t.Fatalf("expected hypervisor %q, got %q", HypervisorKVM, cfg.OpenNebula.Hypervisor)
+	}
+}
+
 func TestLoadRejectsInvalidConfig(t *testing.T) {
 	t.Parallel()
 
@@ -107,6 +138,27 @@ flavors:
 `))
 	if err == nil || !strings.Contains(err.Error(), "opennebula.endpoint is required") {
 		t.Fatalf("expected missing endpoint error, got %v", err)
+	}
+}
+
+func TestLoadRejectsInvalidHypervisor(t *testing.T) {
+	t.Parallel()
+
+	_, err := Load(strings.NewReader(`
+providerID: opennebula
+opennebula:
+  endpoint: https://one.example.com/RPC2
+  templateName: talos-base
+  hypervisor: xen
+flavors:
+  small:
+    cpu: "2"
+    vcpu: 2
+    memoryMiB: 4096
+    rootDiskGiB: 40
+`))
+	if err == nil || !strings.Contains(err.Error(), "opennebula.hypervisor") {
+		t.Fatalf("expected invalid hypervisor error, got %v", err)
 	}
 }
 

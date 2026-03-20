@@ -20,6 +20,7 @@ type Client struct {
 	ImageInfoByID       map[int]parent.ImageInfo
 	Datastores          map[string]parent.DatastoreRef
 	Networks            map[string]parent.NetworkRef
+	Hypervisors         []string
 	VMs                 map[int]parent.VMInfo
 	InstantiateErr      error
 	LookupImageErr      error
@@ -49,6 +50,7 @@ func New() *Client {
 		ImageInfoByID: map[int]parent.ImageInfo{},
 		Datastores:    map[string]parent.DatastoreRef{},
 		Networks:      map[string]parent.NetworkRef{},
+		Hypervisors:   []string{"qemu"},
 		VMs:           map[int]parent.VMInfo{},
 		NextVMID:      100,
 		NextImageID:   200,
@@ -110,6 +112,28 @@ func (c *Client) LookupNetworksByName(_ context.Context, names []string) ([]pare
 	}
 
 	return results, nil
+}
+
+func (c *Client) ResolveHypervisor(_ context.Context, _ parent.HypervisorResolveRequest) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	foundQEMU := false
+
+	for _, hypervisor := range c.Hypervisors {
+		switch hypervisor {
+		case "kvm":
+			return "kvm", nil
+		case "qemu":
+			foundQEMU = true
+		}
+	}
+
+	if foundQEMU {
+		return "qemu", nil
+	}
+
+	return "", fmt.Errorf("%w: neither kvm nor qemu was found on eligible hosts", parent.ErrPolicy)
 }
 
 func (c *Client) CreateImage(_ context.Context, request parent.CreateImageRequest) (parent.ImageRef, error) {

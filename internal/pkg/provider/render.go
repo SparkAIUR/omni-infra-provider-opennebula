@@ -13,6 +13,7 @@ import (
 type RenderInput struct {
 	VMName          string
 	MachineUUID     string
+	Hypervisor      string
 	ImageName       string
 	Datastore       string
 	Resources       ResolvedResources
@@ -36,6 +37,9 @@ func RenderTemplate(input RenderInput) string {
 	var builder strings.Builder
 
 	builder.WriteString(fmt.Sprintf("NAME = %q\n\n", input.VMName))
+	if input.Hypervisor != "" {
+		builder.WriteString(fmt.Sprintf("HYPERVISOR = %q\n", input.Hypervisor))
+	}
 	builder.WriteString(fmt.Sprintf("CPU = %q\n", input.Resources.CPU))
 	builder.WriteString(fmt.Sprintf("VCPU = %q\n", fmt.Sprintf("%d", input.Resources.VCPU)))
 	builder.WriteString(fmt.Sprintf("MEMORY = %q\n\n", fmt.Sprintf("%d", input.Resources.MemoryMiB)))

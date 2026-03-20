@@ -21,6 +21,7 @@ type Client interface {
 	LookupImageByName(context.Context, string) (ImageRef, error)
 	LookupDatastoreByName(context.Context, string) (DatastoreRef, error)
 	LookupNetworksByName(context.Context, []string) ([]NetworkRef, error)
+	ResolveHypervisor(context.Context, HypervisorResolveRequest) (string, error)
 	CreateImage(context.Context, CreateImageRequest) (ImageRef, error)
 	GetImage(context.Context, int) (ImageInfo, error)
 	DeleteImage(context.Context, int) error
@@ -84,6 +85,11 @@ type InstantiateRequest struct {
 	ExtraTemplate string
 	Pending       bool
 	CloneTemplate bool
+}
+
+// HypervisorResolveRequest scopes host-based hypervisor detection.
+type HypervisorResolveRequest struct {
+	ResourcePool string
 }
 
 // VMRef is a lightweight created VM reference.
