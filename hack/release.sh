@@ -8,9 +8,39 @@ set -e
 
 RELEASE_TOOL_IMAGE="ghcr.io/siderolabs/release-tool:latest"
 
+function generate-release-config {
+  local tag="$1"
+  local temp_config
+  local previous_tag
+
+  temp_config="$(mktemp)"
+  cp ./hack/release.toml "${temp_config}"
+
+  if [ -n "${tag}" ]; then
+    previous_tag="$(git tag --list 'v[0-9]*' --sort=-version:refname | grep -Fvx "${tag}" | head -n 1 || true)"
+  fi
+
+  if [ -n "${previous_tag}" ]; then
+    sed -E "s/^previous = .*/previous = '${previous_tag}'/" "${temp_config}" > "${temp_config}.next"
+    mv "${temp_config}.next" "${temp_config}"
+  else
+    sed -E "/^previous = /d" "${temp_config}" > "${temp_config}.next"
+    mv "${temp_config}.next" "${temp_config}"
+  fi
+
+  echo "${temp_config}"
+}
+
 function release-tool {
+  local tag="$1"
+  local release_config
+
+  release_config="$(generate-release-config "${tag}")"
+
   docker pull "${RELEASE_TOOL_IMAGE}" >/dev/null
-  docker run --rm -w /src -v "${PWD}":/src:ro "${RELEASE_TOOL_IMAGE}" -l -d -n -t "${1}" ./hack/release.toml
+  docker run --rm -w /src -v "${PWD}":/src:ro -v "${release_config}":/tmp/release.toml:ro "${RELEASE_TOOL_IMAGE}" -l -d -n -t "${tag}" /tmp/release.toml
+
+  rm -f "${release_config}"
 }
 
 function changelog {
@@ -146,4 +176,3 @@ EOF
 
   exit 1
 fi
-
