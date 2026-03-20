@@ -15,3 +15,8 @@ refs/docs/ctx/
 refs/docs/
 refs/tasks/
 refs/notes/
+/.assh
+talosconfig
+task_plan.md
+notes.md
+/.assh
