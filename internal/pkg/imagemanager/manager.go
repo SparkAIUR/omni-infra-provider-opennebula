@@ -93,6 +93,11 @@ func (m *Manager) Resolve(ctx context.Context, request ResolveRequest) (Result, 
 		request.Arch = "amd64"
 	}
 
+	datastoreName := request.Datastore
+	if datastoreName == "" {
+		datastoreName = m.config.StoragePolicies.DefaultDatastore
+	}
+
 	if request.ExistingImageID != 0 {
 		imageInfo, err := m.client.GetImage(ctx, request.ExistingImageID)
 		if err != nil {
@@ -107,7 +112,7 @@ func (m *Manager) Resolve(ctx context.Context, request ResolveRequest) (Result, 
 		return result, err
 	}
 
-	imageRef, err := m.client.LookupImageByName(ctx, request.ImageName)
+	imageRef, err := m.lookupImage(ctx, request.ImageName, datastoreName)
 	if err == nil {
 		imageInfo, infoErr := m.client.GetImage(ctx, imageRef.ID)
 		if infoErr != nil {
@@ -143,11 +148,6 @@ func (m *Manager) Resolve(ctx context.Context, request ResolveRequest) (Result, 
 		return Result{}, fmt.Errorf("%w: imageManagement.artifactURLTemplate is required for image import", opennebula.ErrPolicy)
 	}
 
-	datastoreName := request.Datastore
-	if datastoreName == "" {
-		datastoreName = m.config.StoragePolicies.DefaultDatastore
-	}
-
 	if datastoreName == "" {
 		m.observe("import", "error")
 		return Result{}, fmt.Errorf("%w: datastore is required to import image %q", opennebula.ErrPolicy, request.ImageName)
@@ -169,7 +169,7 @@ func (m *Manager) Resolve(ctx context.Context, request ResolveRequest) (Result, 
 	waited, unlock := m.acquireImportLock(lockKey)
 	defer unlock()
 
-	if imageRef, err := m.client.LookupImageByName(ctx, request.ImageName); err == nil {
+	if imageRef, err := m.lookupImage(ctx, request.ImageName, datastoreName); err == nil {
 		imageInfo, infoErr := m.client.GetImage(ctx, imageRef.ID)
 		if infoErr != nil {
 			m.observe("lookup", "error")
@@ -217,6 +217,14 @@ func (m *Manager) Resolve(ctx context.Context, request ResolveRequest) (Result, 
 	result.CacheHit = false
 	result.ChecksumVerified = checksum != ""
 	return result, err
+}
+
+func (m *Manager) lookupImage(ctx context.Context, imageName string, datastoreName string) (opennebula.ImageRef, error) {
+	if strings.TrimSpace(datastoreName) != "" {
+		return m.client.LookupImageByNameInDatastore(ctx, imageName, datastoreName)
+	}
+
+	return m.client.LookupImageByName(ctx, imageName)
 }
 
 func (m *Manager) acquireImportLock(key string) (bool, func()) {

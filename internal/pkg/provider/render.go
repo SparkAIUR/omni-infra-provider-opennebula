@@ -40,7 +40,6 @@ func RenderTemplate(input RenderInput) string {
 	if input.Hypervisor != "" {
 		builder.WriteString(fmt.Sprintf("HYPERVISOR = %q\n", input.Hypervisor))
 	}
-	builder.WriteString("CPU_MODEL = [ MODEL = \"host-passthrough\" ]\n")
 	builder.WriteString(fmt.Sprintf("CPU = %q\n", input.Resources.CPU))
 	builder.WriteString(fmt.Sprintf("VCPU = %q\n", fmt.Sprintf("%d", input.Resources.VCPU)))
 	builder.WriteString(fmt.Sprintf("MEMORY = %q\n\n", fmt.Sprintf("%d", input.Resources.MemoryMiB)))

@@ -93,9 +93,6 @@ func (p *Provisioner) runPreflight(data ProviderData, resources ResolvedResource
 	if resources.VCPU <= 0 || resources.MemoryMiB <= 0 || resources.RootDiskGiB <= 0 {
 		result.Errors = append(result.Errors, "resolved resources are incomplete")
 	}
-	if hypervisor == providerconfig.HypervisorQEMU && resources.CPU != "" && resources.CPU != "host-passthrough" {
-		result.Warnings = append(result.Warnings, "qemu environment resolved with non-host-passthrough cpu setting")
-	}
 	if placement.Selected.ID == 0 {
 		result.Errors = append(result.Errors, "no eligible host was selected")
 	}

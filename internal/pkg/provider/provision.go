@@ -145,7 +145,7 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 		SetDrift(pctx.State, DriftStatusHealthy, nil)
 
 		schematicID := pctx.State.TypedSpec().Value.SchematicId
-		imageName, err := p.renderImageName(pctx.GetTalosVersion(), schematicID)
+		imageName, err := p.renderImageName(pctx.GetTalosVersion(), schematicID, data.Datastore)
 		if err != nil {
 			SetLastError(pctx.State, err.Error())
 			return err
@@ -411,7 +411,7 @@ func (p *Provisioner) resolveRequest(ctx context.Context, pctx provision.Context
 	return data, resolved, nil
 }
 
-func (p *Provisioner) renderImageName(talosVersion, schematicID string) (string, error) {
+func (p *Provisioner) renderImageName(talosVersion, schematicID, datastore string) (string, error) {
 	tpl, err := template.New("image-name").Parse(p.config.OpenNebula.ImageNamePattern)
 	if err != nil {
 		return "", fmt.Errorf("parse imageNamePattern: %w", err)
@@ -420,6 +420,7 @@ func (p *Provisioner) renderImageName(talosVersion, schematicID string) (string,
 	var builder strings.Builder
 	if err := tpl.Execute(&builder, map[string]string{
 		"Arch":         "amd64",
+		"Datastore":    datastore,
 		"TalosVersion": talosVersion,
 		"SchematicID":  schematicID,
 	}); err != nil {

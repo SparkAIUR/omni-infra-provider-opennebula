@@ -21,7 +21,7 @@ func TestCanonicalVMName(t *testing.T) {
 	}
 }
 
-func TestRenderTemplateUsesHostPassthroughCPUModel(t *testing.T) {
+func TestRenderTemplateOmitsCPUModel(t *testing.T) {
 	t.Parallel()
 
 	rendered := RenderTemplate(RenderInput{
@@ -34,8 +34,26 @@ func TestRenderTemplateUsesHostPassthroughCPUModel(t *testing.T) {
 		FirmwareMode:"uefi",
 	})
 
-	if !strings.Contains(rendered, "CPU_MODEL = [ MODEL = \"host-passthrough\" ]") {
-		t.Fatalf("expected host-passthrough cpu model, got %q", rendered)
+	if strings.Contains(rendered, "CPU_MODEL = ") {
+		t.Fatalf("expected cpu model to be omitted, got %q", rendered)
+	}
+}
+
+func TestRenderTemplateOmitsCPUModelForQEMU(t *testing.T) {
+	t.Parallel()
+
+	rendered := RenderTemplate(RenderInput{
+		VMName:       "test-vm",
+		Hypervisor:   "qemu",
+		ImageName:    "talos-image",
+		Datastore:    "default",
+		Resources:    ResolvedResources{CPU: "2", VCPU: 2, MemoryMiB: 4096, RootDiskGiB: 20},
+		ContextKV:    map[string]string{"SET_HOSTNAME": "test-vm"},
+		FirmwareMode: "uefi",
+	})
+
+	if strings.Contains(rendered, "CPU_MODEL = ") {
+		t.Fatalf("expected qemu render to omit cpu model, got %q", rendered)
 	}
 }
 

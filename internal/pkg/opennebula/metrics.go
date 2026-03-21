@@ -43,6 +43,12 @@ func (c *instrumentedClient) LookupImageByName(ctx context.Context, name string)
 	})
 }
 
+func (c *instrumentedClient) LookupImageByNameInDatastore(ctx context.Context, name string, datastore string) (ImageRef, error) {
+	return observe(c, "lookup_image", func() (ImageRef, error) {
+		return c.inner.LookupImageByNameInDatastore(ctx, name, datastore)
+	})
+}
+
 func (c *instrumentedClient) LookupDatastoreByName(ctx context.Context, name string) (DatastoreRef, error) {
 	return observe(c, "lookup_datastore", func() (DatastoreRef, error) {
 		return c.inner.LookupDatastoreByName(ctx, name)

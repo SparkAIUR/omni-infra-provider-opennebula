@@ -75,6 +75,48 @@ func (c *GOCAClient) LookupImageByName(ctx context.Context, name string) (ImageR
 	return ImageRef{ID: id, Name: image.Name, Datastore: datastore, SizeMiB: image.Size / 1024}, nil
 }
 
+// LookupImageByNameInDatastore resolves an image by name within a specific datastore.
+func (c *GOCAClient) LookupImageByNameInDatastore(ctx context.Context, name string, datastoreName string) (ImageRef, error) {
+	if strings.TrimSpace(datastoreName) == "" {
+		return c.LookupImageByName(ctx, name)
+	}
+
+	imagePool, err := c.controller.Images().InfoContext(ctx)
+	if err != nil {
+		return ImageRef{}, fmt.Errorf("list images: %w", err)
+	}
+
+	matchCount := 0
+	match := ImageRef{}
+
+	for _, img := range imagePool.Images {
+		if img.Name != name {
+			continue
+		}
+
+		if !strings.EqualFold(strings.TrimSpace(img.Datastore), strings.TrimSpace(datastoreName)) {
+			continue
+		}
+
+		match = ImageRef{
+			ID:        img.ID,
+			Name:      img.Name,
+			Datastore: img.Datastore,
+			SizeMiB:   img.Size / 1024,
+		}
+		matchCount++
+	}
+
+	switch {
+	case matchCount == 0:
+		return ImageRef{}, fmt.Errorf("%w: image %q in datastore %q", ErrNotFound, name, datastoreName)
+	case matchCount > 1:
+		return ImageRef{}, fmt.Errorf("%w: multiple images named %q in datastore %q", ErrPolicy, name, datastoreName)
+	default:
+		return match, nil
+	}
+}
+
 // LookupDatastoreByName resolves a datastore by name.
 func (c *GOCAClient) LookupDatastoreByName(ctx context.Context, name string) (DatastoreRef, error) {
 	id, err := c.controller.Datastores().ByNameContext(ctx, name)

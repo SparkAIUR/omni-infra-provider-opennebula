@@ -7,6 +7,7 @@ package fake
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	parent "github.com/SparkAIUR/omni-infra-provider-opennebula/internal/pkg/opennebula"
@@ -97,6 +98,23 @@ func (c *Client) LookupImageByName(_ context.Context, name string) (parent.Image
 	}
 
 	return ref, nil
+}
+
+func (c *Client) LookupImageByNameInDatastore(_ context.Context, name string, datastore string) (parent.ImageRef, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.LookupImageErr != nil {
+		return parent.ImageRef{}, c.LookupImageErr
+	}
+
+	for _, ref := range c.Images {
+		if ref.Name == name && strings.EqualFold(ref.Datastore, datastore) {
+			return ref, nil
+		}
+	}
+
+	return parent.ImageRef{}, fmt.Errorf("%w: image %q in datastore %q", parent.ErrNotFound, name, datastore)
 }
 
 func (c *Client) LookupNetworksByName(_ context.Context, names []string) ([]parent.NetworkRef, error) {

@@ -19,6 +19,7 @@ import "context"
 type Client interface {
 	LookupTemplateByName(context.Context, string) (TemplateRef, error)
 	LookupImageByName(context.Context, string) (ImageRef, error)
+	LookupImageByNameInDatastore(context.Context, string, string) (ImageRef, error)
 	LookupDatastoreByName(context.Context, string) (DatastoreRef, error)
 	LookupNetworksByName(context.Context, []string) ([]NetworkRef, error)
 	ListHosts(context.Context, HostListRequest) ([]HostInfo, error)
