@@ -34,6 +34,16 @@ const (
 	EnvironmentProfileLabQEMU = "lab-qemu"
 	// EnvironmentProfileProductionKVM applies production-oriented defaults.
 	EnvironmentProfileProductionKVM = "production-kvm"
+	// EnvironmentProfileMixedStaging applies mixed local/Ceph staging defaults.
+	EnvironmentProfileMixedStaging = "mixed-staging"
+	// StorageProfileAny accepts any compatible storage path.
+	StorageProfileAny = "any"
+	// StorageProfileLocalRoot prefers local or non-Ceph root-disk placement.
+	StorageProfileLocalRoot = "local-root"
+	// StorageProfileCephRBD requires Ceph RBD-compatible placement.
+	StorageProfileCephRBD = "ceph-rbd"
+	// StorageProfileCephFSCapable requires CephFS-capable placement.
+	StorageProfileCephFSCapable = "cephfs-capable"
 	// ManualNetworkingWarn records warnings but allows the request.
 	ManualNetworkingWarn = "warn"
 	// ManualNetworkingRequireValidation blocks requests until they use a validated path.
@@ -68,6 +78,8 @@ type Config struct {
 	StoragePolicies   StoragePoliciesConfig     `yaml:"storagePolicies"`
 	Observability     ObservabilityConfig       `yaml:"observability"`
 	Explain           ExplainConfig             `yaml:"explain"`
+	Support           SupportConfig             `yaml:"support"`
+	Diagnostics       DiagnosticsConfig         `yaml:"diagnostics"`
 	Limits            LimitsConfig              `yaml:"limits"`
 }
 
@@ -175,6 +187,8 @@ type EnvironmentConfig struct {
 type PlacementConfig struct {
 	Strategy          string                 `yaml:"strategy,omitempty"`
 	PreferKVMWhenAuto bool                   `yaml:"preferKVMWhenAuto,omitempty"`
+	HostTags          map[string][]string    `yaml:"hostTags,omitempty"`
+	NetworkZones      map[string][]string    `yaml:"networkZones,omitempty"`
 	Scoring           PlacementScoringConfig `yaml:"scoring,omitempty"`
 }
 
@@ -252,6 +266,26 @@ type ObservabilityConfig struct {
 
 // ExplainConfig controls non-mutating operator explain surfaces.
 type ExplainConfig struct {
+	Enabled bool `yaml:"enabled,omitempty"`
+}
+
+// SupportConfig controls support-bundle related behavior.
+type SupportConfig struct {
+	Bundle SupportBundleConfig `yaml:"bundle,omitempty"`
+}
+
+// SupportBundleConfig toggles support bundle generation.
+type SupportBundleConfig struct {
+	Enabled bool `yaml:"enabled,omitempty"`
+}
+
+// DiagnosticsConfig controls operator-facing diagnostic hints.
+type DiagnosticsConfig struct {
+	BootstrapHints BootstrapHintsConfig `yaml:"bootstrapHints,omitempty"`
+}
+
+// BootstrapHintsConfig toggles bootstrap diagnostic fingerprinting.
+type BootstrapHintsConfig struct {
 	Enabled bool `yaml:"enabled,omitempty"`
 }
 
@@ -357,6 +391,12 @@ func (cfg *Config) applyDefaults() {
 	if cfg.Placement.Strategy == "" {
 		cfg.Placement.Strategy = "balanced"
 	}
+	if cfg.Placement.HostTags == nil {
+		cfg.Placement.HostTags = map[string][]string{}
+	}
+	if cfg.Placement.NetworkZones == nil {
+		cfg.Placement.NetworkZones = map[string][]string{}
+	}
 	if cfg.Placement.Scoring.CPUHeadroomWeight == 0 {
 		cfg.Placement.Scoring.CPUHeadroomWeight = 1.0
 	}
@@ -418,6 +458,12 @@ func (cfg *Config) applyDefaults() {
 	if !cfg.Explain.Enabled {
 		cfg.Explain.Enabled = true
 	}
+	if !cfg.Support.Bundle.Enabled {
+		cfg.Support.Bundle.Enabled = true
+	}
+	if !cfg.Diagnostics.BootstrapHints.Enabled {
+		cfg.Diagnostics.BootstrapHints.Enabled = true
+	}
 
 	if cfg.Limits.MaxVCPU == 0 {
 		cfg.Limits.MaxVCPU = 64
@@ -460,6 +506,16 @@ func (cfg *Config) applyProfileDefaults() {
 		if cfg.Policy.ManualNetworking.Mode == "" {
 			cfg.Policy.ManualNetworking.Mode = ManualNetworkingRequireValidation
 		}
+	case EnvironmentProfileMixedStaging:
+		if cfg.OpenNebula.Hypervisor == "" {
+			cfg.OpenNebula.Hypervisor = HypervisorAuto
+		}
+		if cfg.Bootstrap.Profile == "" {
+			cfg.Bootstrap.Profile = BootstrapProfileLab
+		}
+		if cfg.Policy.ManualNetworking.Mode == "" {
+			cfg.Policy.ManualNetworking.Mode = ManualNetworkingRequireValidation
+		}
 	}
 }
 
@@ -483,9 +539,9 @@ func (cfg Config) Validate() error {
 	}
 
 	switch cfg.Environment.Profile {
-	case EnvironmentProfileCustom, EnvironmentProfileLabQEMU, EnvironmentProfileProductionKVM:
+	case EnvironmentProfileCustom, EnvironmentProfileLabQEMU, EnvironmentProfileMixedStaging, EnvironmentProfileProductionKVM:
 	default:
-		return fmt.Errorf("environment.profile must be %q, %q, or %q", EnvironmentProfileCustom, EnvironmentProfileLabQEMU, EnvironmentProfileProductionKVM)
+		return fmt.Errorf("environment.profile must be %q, %q, %q, or %q", EnvironmentProfileCustom, EnvironmentProfileLabQEMU, EnvironmentProfileMixedStaging, EnvironmentProfileProductionKVM)
 	}
 
 	if cfg.Defaults.Firmware != "uefi" && cfg.Defaults.Firmware != "bios" {
@@ -572,6 +628,14 @@ func (cfg Config) Validate() error {
 	case "balanced":
 	default:
 		return fmt.Errorf("placement.strategy must be %q", "balanced")
+	}
+	for zone, hosts := range cfg.Placement.NetworkZones {
+		if strings.TrimSpace(zone) == "" {
+			return errors.New("placement.networkZones keys cannot be empty")
+		}
+		if len(hosts) == 0 {
+			return fmt.Errorf("placement.networkZones.%s must list at least one host", zone)
+		}
 	}
 
 	switch cfg.Policy.ManualNetworking.Mode {
@@ -683,6 +747,27 @@ func (cfg Config) AllowedAdditionalDiskDatastore(name string) bool {
 	}
 
 	return listContains(cfg.StoragePolicies.AdditionalDiskDatastores, name)
+}
+
+// HostTags returns configured topology tags for a host.
+func (cfg Config) HostTags(name string) []string {
+	return append([]string(nil), cfg.Placement.HostTags[name]...)
+}
+
+// HasNetworkZone reports whether a named network zone exists.
+func (cfg Config) HasNetworkZone(name string) bool {
+	_, ok := cfg.Placement.NetworkZones[name]
+	return ok
+}
+
+// HostInNetworkZone reports whether the host belongs to the named zone.
+func (cfg Config) HostInNetworkZone(zone, host string) bool {
+	hosts, ok := cfg.Placement.NetworkZones[zone]
+	if !ok {
+		return false
+	}
+
+	return listContains(hosts, host)
 }
 
 // ResolveNetworkProfile returns a named network profile if one exists.

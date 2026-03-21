@@ -25,13 +25,13 @@ func TestRenderTemplateOmitsCPUModel(t *testing.T) {
 	t.Parallel()
 
 	rendered := RenderTemplate(RenderInput{
-		VMName:      "test-vm",
-		Hypervisor:  "kvm",
-		ImageName:   "talos-image",
-		Datastore:   "default",
-		Resources:   ResolvedResources{CPU: "2", VCPU: 2, MemoryMiB: 4096, RootDiskGiB: 20},
-		ContextKV:   map[string]string{"SET_HOSTNAME": "test-vm"},
-		FirmwareMode:"uefi",
+		VMName:       "test-vm",
+		Hypervisor:   "kvm",
+		ImageName:    "talos-image",
+		Datastore:    "default",
+		Resources:    ResolvedResources{CPU: "2", VCPU: 2, MemoryMiB: 4096, RootDiskGiB: 20},
+		ContextKV:    map[string]string{"SET_HOSTNAME": "test-vm"},
+		FirmwareMode: "uefi",
 	})
 
 	if strings.Contains(rendered, "CPU_MODEL = ") {
@@ -188,6 +188,16 @@ func TestValidateProviderDataRejectsInvalidCombinations(t *testing.T) {
 				AdditionalDisks: []AdditionalDisk{{SizeGiB: 200}},
 			},
 			want: "additionalDisks[0].sizeGiB exceeds provider limit",
+		},
+		{
+			name: "invalid storage profile",
+			data: ProviderData{
+				SchemaVersion: "v1alpha2",
+				Flavor:        "small",
+				Networks:      []NetworkRef{{Name: "prod-lan"}},
+				Placement:     PlacementPolicy{StorageProfile: "broken"},
+			},
+			want: "placement.storageProfile",
 		},
 		{
 			name: "explicit resources missing values",
@@ -417,6 +427,15 @@ func testConfig() providerconfig.Config {
 			AllowedDatastores: []string{"fast-ssd"},
 			AllowedNetworks:   []string{"prod-lan"},
 			ImageNamePattern:  "talos-opennebula-{{ .Arch }}-{{ .TalosVersion }}-schematic-{{ .SchematicID }}",
+		},
+		Placement: providerconfig.PlacementConfig{
+			HostTags: map[string][]string{
+				"host-1": {"local-root"},
+				"host-2": {"ceph-rbd"},
+			},
+			NetworkZones: map[string][]string{
+				"staging": {"host-1", "host-2"},
+			},
 		},
 		Defaults: providerconfig.DefaultsConfig{
 			Flavor:             "small",

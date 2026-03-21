@@ -93,10 +93,14 @@ type ImagePolicy struct {
 
 // PlacementPolicy controls safe placement overrides exposed to self-service users.
 type PlacementPolicy struct {
-	Host    string `json:"host,omitempty" yaml:"host,omitempty"`
-	Cluster string `json:"cluster,omitempty" yaml:"cluster,omitempty"`
-	VMGroup string `json:"vmGroup,omitempty" yaml:"vmGroup,omitempty"`
-	Role    string `json:"role,omitempty" yaml:"role,omitempty"`
+	Host             string   `json:"host,omitempty" yaml:"host,omitempty"`
+	Cluster          string   `json:"cluster,omitempty" yaml:"cluster,omitempty"`
+	VMGroup          string   `json:"vmGroup,omitempty" yaml:"vmGroup,omitempty"`
+	Role             string   `json:"role,omitempty" yaml:"role,omitempty"`
+	StorageProfile   string   `json:"storageProfile,omitempty" yaml:"storageProfile,omitempty"`
+	RequiredHostTags []string `json:"requiredHostTags,omitempty" yaml:"requiredHostTags,omitempty"`
+	ExcludedHostTags []string `json:"excludedHostTags,omitempty" yaml:"excludedHostTags,omitempty"`
+	NetworkZone      string   `json:"networkZone,omitempty" yaml:"networkZone,omitempty"`
 }
 
 // AdditionalDisk defines a volatile extra disk attached to the Talos VM.

@@ -21,6 +21,8 @@ const (
 	ImageActionWaited     string          = "waited_for_existing_import"
 	ImageActionEvicted    string          = "evicted_previous_generation"
 	ImageActionUnknown    string          = "unknown"
+	DiagnosticFingerprintBootstrapPending = "bootstrap-pending"
+	DiagnosticFingerprintBootstrapFailure = "bootstrap-failure"
 )
 
 // PreflightResult is the structured outcome of compatibility validation.
@@ -53,6 +55,7 @@ type ResolvedPlan struct {
 	Networks         []opennebula.NetworkRef
 	Datastore        opennebula.DatastoreRef
 	Hypervisor       string
+	StorageProfile   string
 	Placement        PlacementDecision
 	BootstrapProfile string
 	Preflight        PreflightResult

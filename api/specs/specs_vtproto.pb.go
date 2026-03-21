@@ -60,6 +60,8 @@ func (m *MachineSpec) CloneVT() *MachineSpec {
 	r.ImageChecksumVerified = m.ImageChecksumVerified
 	r.BootstrapProfile = m.BootstrapProfile
 	r.DriftStatus = m.DriftStatus
+	r.ResolvedStorageProfile = m.ResolvedStorageProfile
+	r.DiagnosticFingerprint = m.DiagnosticFingerprint
 	if rhs := m.NetworkNames; rhs != nil {
 		tmpContainer := make([]string, len(rhs))
 		copy(tmpContainer, rhs)
@@ -84,6 +86,16 @@ func (m *MachineSpec) CloneVT() *MachineSpec {
 		tmpContainer := make([]string, len(rhs))
 		copy(tmpContainer, rhs)
 		r.DriftDetails = tmpContainer
+	}
+	if rhs := m.ResolvedHostTags; rhs != nil {
+		tmpContainer := make([]string, len(rhs))
+		copy(tmpContainer, rhs)
+		r.ResolvedHostTags = tmpContainer
+	}
+	if rhs := m.ResolvedDatastoreCapabilities; rhs != nil {
+		tmpContainer := make([]string, len(rhs))
+		copy(tmpContainer, rhs)
+		r.ResolvedDatastoreCapabilities = tmpContainer
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -277,6 +289,30 @@ func (this *MachineSpec) EqualVT(that *MachineSpec) bool {
 			return false
 		}
 	}
+	if this.ResolvedStorageProfile != that.ResolvedStorageProfile {
+		return false
+	}
+	if len(this.ResolvedHostTags) != len(that.ResolvedHostTags) {
+		return false
+	}
+	for i, vx := range this.ResolvedHostTags {
+		vy := that.ResolvedHostTags[i]
+		if vx != vy {
+			return false
+		}
+	}
+	if len(this.ResolvedDatastoreCapabilities) != len(that.ResolvedDatastoreCapabilities) {
+		return false
+	}
+	for i, vx := range this.ResolvedDatastoreCapabilities {
+		vy := that.ResolvedDatastoreCapabilities[i]
+		if vx != vy {
+			return false
+		}
+	}
+	if this.DiagnosticFingerprint != that.DiagnosticFingerprint {
+		return false
+	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
 
@@ -359,6 +395,46 @@ func (m *MachineSpec) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.DiagnosticFingerprint) > 0 {
+		i -= len(m.DiagnosticFingerprint)
+		copy(dAtA[i:], m.DiagnosticFingerprint)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.DiagnosticFingerprint)))
+		i--
+		dAtA[i] = 0x2
+		i--
+		dAtA[i] = 0xe2
+	}
+	if len(m.ResolvedDatastoreCapabilities) > 0 {
+		for iNdEx := len(m.ResolvedDatastoreCapabilities) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.ResolvedDatastoreCapabilities[iNdEx])
+			copy(dAtA[i:], m.ResolvedDatastoreCapabilities[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ResolvedDatastoreCapabilities[iNdEx])))
+			i--
+			dAtA[i] = 0x2
+			i--
+			dAtA[i] = 0xda
+		}
+	}
+	if len(m.ResolvedHostTags) > 0 {
+		for iNdEx := len(m.ResolvedHostTags) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.ResolvedHostTags[iNdEx])
+			copy(dAtA[i:], m.ResolvedHostTags[iNdEx])
+			i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ResolvedHostTags[iNdEx])))
+			i--
+			dAtA[i] = 0x2
+			i--
+			dAtA[i] = 0xd2
+		}
+	}
+	if len(m.ResolvedStorageProfile) > 0 {
+		i -= len(m.ResolvedStorageProfile)
+		copy(dAtA[i:], m.ResolvedStorageProfile)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ResolvedStorageProfile)))
+		i--
+		dAtA[i] = 0x2
+		i--
+		dAtA[i] = 0xca
 	}
 	if len(m.DriftDetails) > 0 {
 		for iNdEx := len(m.DriftDetails) - 1; iNdEx >= 0; iNdEx-- {
@@ -968,6 +1044,26 @@ func (m *MachineSpec) SizeVT() (n int) {
 			l = len(s)
 			n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 		}
+	}
+	l = len(m.ResolvedStorageProfile)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if len(m.ResolvedHostTags) > 0 {
+		for _, s := range m.ResolvedHostTags {
+			l = len(s)
+			n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
+	}
+	if len(m.ResolvedDatastoreCapabilities) > 0 {
+		for _, s := range m.ResolvedDatastoreCapabilities {
+			l = len(s)
+			n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+		}
+	}
+	l = len(m.DiagnosticFingerprint)
+	if l > 0 {
+		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -2255,6 +2351,134 @@ func (m *MachineSpec) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.DriftDetails = append(m.DriftDetails, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 41:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResolvedStorageProfile", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ResolvedStorageProfile = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 42:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResolvedHostTags", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ResolvedHostTags = append(m.ResolvedHostTags, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 43:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResolvedDatastoreCapabilities", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ResolvedDatastoreCapabilities = append(m.ResolvedDatastoreCapabilities, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 44:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DiagnosticFingerprint", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return protohelpers.ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.DiagnosticFingerprint = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

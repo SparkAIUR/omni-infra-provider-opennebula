@@ -59,9 +59,15 @@ type ImageInfo struct {
 
 // DatastoreRef is a resolved datastore reference.
 type DatastoreRef struct {
-	ID     int
-	Name   string
-	FreeMB int
+	ID           int
+	Name         string
+	FreeMB       int
+	Type         string
+	DiskType     string
+	DSMad        string
+	TMMad        string
+	CephBacked   bool
+	Capabilities []string
 }
 
 // NetworkRef is a resolved network reference.
@@ -106,6 +112,7 @@ type HostInfo struct {
 	ClusterID      int
 	ClusterName    string
 	Hypervisor     string
+	Tags           []string
 	Enabled        bool
 	Schedulable    bool
 	CPUTotal       int
@@ -113,6 +120,17 @@ type HostInfo struct {
 	MemoryTotalMiB int
 	MemoryUsedMiB  int
 	RunningVMs     int
+}
+
+// HasTag reports whether a normalized host tag is present.
+func (h HostInfo) HasTag(tag string) bool {
+	for _, candidate := range h.Tags {
+		if candidate == tag {
+			return true
+		}
+	}
+
+	return false
 }
 
 // CPUHeadroomRatio reports the remaining CPU fraction.

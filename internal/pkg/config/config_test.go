@@ -117,6 +117,37 @@ flavors:
 	}
 }
 
+func TestLoadAppliesMixedStagingProfileDefaults(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Load(strings.NewReader(`
+providerID: opennebula
+environment:
+  profile: mixed-staging
+opennebula:
+  endpoint: https://one.example.com/RPC2
+  templateName: talos-base
+defaults:
+  flavor: small
+flavors:
+  small:
+    cpu: "2"
+    vcpu: 2
+    memoryMiB: 4096
+    rootDiskGiB: 40
+`))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Environment.Profile != EnvironmentProfileMixedStaging {
+		t.Fatalf("expected mixed staging profile, got %q", cfg.Environment.Profile)
+	}
+	if cfg.Bootstrap.Profile != BootstrapProfileLab {
+		t.Fatalf("expected mixed staging bootstrap profile %q, got %q", BootstrapProfileLab, cfg.Bootstrap.Profile)
+	}
+}
+
 func TestLoadAcceptsClusterRoleSequenceHostnameStrategy(t *testing.T) {
 	t.Parallel()
 
@@ -238,6 +269,29 @@ flavors:
 
 	if !strings.Contains(err.Error(), "networkProfiles.prod.contextMode") && !strings.Contains(err.Error(), "observability.metricsPath") {
 		t.Fatalf("expected observability or network profile error, got %v", err)
+	}
+}
+
+func TestLoadRejectsEmptyNetworkZoneHosts(t *testing.T) {
+	t.Parallel()
+
+	_, err := Load(strings.NewReader(`
+providerID: opennebula
+opennebula:
+  endpoint: https://one.example.com/RPC2
+  templateName: talos-base
+placement:
+  networkZones:
+    staging: []
+flavors:
+  small:
+    cpu: "2"
+    vcpu: 2
+    memoryMiB: 4096
+    rootDiskGiB: 40
+`))
+	if err == nil || !strings.Contains(err.Error(), "placement.networkZones.staging") {
+		t.Fatalf("expected invalid network zone error, got %v", err)
 	}
 }
 

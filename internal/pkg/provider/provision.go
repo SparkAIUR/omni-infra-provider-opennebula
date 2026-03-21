@@ -136,13 +136,17 @@ func (p *Provisioner) instantiateVM(ctx context.Context, logger *zap.Logger, pct
 		SetDeleteMode(pctx.State, data.Lifecycle.DeleteMode)
 		SetResolvedHypervisor(pctx.State, plan.Hypervisor)
 		SetResolvedHost(pctx.State, plan.Placement.Selected.ID, plan.Placement.Selected.Name)
+		SetResolvedHostTags(pctx.State, plan.Placement.Selected.Tags)
 		SetResolvedCluster(pctx.State, plan.Placement.Selected.ClusterID, plan.Placement.Selected.ClusterName)
+		SetResolvedStorageProfile(pctx.State, plan.StorageProfile)
+		SetResolvedDatastoreCapabilities(pctx.State, plan.Datastore.Capabilities)
 		SetPlacementDecision(pctx.State, plan.Placement.Reason, plan.Placement.ScoreSummary)
 		SetPreflight(pctx.State, string(plan.Preflight.Status), plan.Preflight.Errors, plan.Preflight.Warnings)
 		SetBootstrapProfile(pctx.State, plan.BootstrapProfile)
 		SetDatastoreID(pctx.State, plan.Datastore.ID)
 		SetNetworkIDs(pctx.State, networkIDs(plan.Networks))
 		SetDrift(pctx.State, DriftStatusHealthy, nil)
+		SetDiagnosticFingerprint(pctx.State, "")
 
 		schematicID := pctx.State.TypedSpec().Value.SchematicId
 		imageName, err := p.renderImageName(pctx.GetTalosVersion(), schematicID, data.Datastore)
@@ -284,6 +288,9 @@ func (p *Provisioner) waitForVM(ctx context.Context, _ *zap.Logger, pctx provisi
 
 		if vmID == 0 {
 			SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassRetryable))
+			if p.config.Diagnostics.BootstrapHints.Enabled {
+				SetDiagnosticFingerprint(pctx.State, DiagnosticFingerprintBootstrapPending)
+			}
 			return p.retryError("waitForVM", retryInterval, "vm id is not set yet")
 		}
 
@@ -293,6 +300,9 @@ func (p *Provisioner) waitForVM(ctx context.Context, _ *zap.Logger, pctx provisi
 			SetLastRetryClassification(pctx.State, string(opennebula.ClassifyError(err)))
 			if opennebula.IsNotFoundError(err) {
 				SetDrift(pctx.State, DriftStatusActionable, []string{fmt.Sprintf("vm %d is missing in OpenNebula", vmID)})
+			}
+			if p.config.Diagnostics.BootstrapHints.Enabled {
+				SetDiagnosticFingerprint(pctx.State, DiagnosticFingerprintBootstrapFailure)
 			}
 			return p.clientError("waitForVM", "get vm", err)
 		}
@@ -309,11 +319,17 @@ func (p *Provisioner) waitForVM(ctx context.Context, _ *zap.Logger, pctx provisi
 			SetLastError(pctx.State, err.Error())
 			SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassTerminal))
 			SetDrift(pctx.State, DriftStatusWarning, []string{fmt.Sprintf("vm %d entered failure state %s/%s", vmID, vmInfo.State, vmInfo.LCMState)})
+			if p.config.Diagnostics.BootstrapHints.Enabled {
+				SetDiagnosticFingerprint(pctx.State, fmt.Sprintf("%s:%s/%s:%s", DiagnosticFingerprintBootstrapFailure, vmInfo.State, vmInfo.LCMState, bootstrapProfile))
+			}
 
 			return err
 		}
 
 		SetLastRetryClassification(pctx.State, string(opennebula.ErrorClassRetryable))
+		if p.config.Diagnostics.BootstrapHints.Enabled {
+			SetDiagnosticFingerprint(pctx.State, fmt.Sprintf("%s:%s/%s:%s", DiagnosticFingerprintBootstrapPending, vmInfo.State, vmInfo.LCMState, bootstrapProfile))
+		}
 		return p.retryError("waitForVM", retryInterval, "vm %d not running yet (state=%s lcm=%s bootstrap_profile=%s)", vmID, vmInfo.State, vmInfo.LCMState, bootstrapProfile)
 	})
 }

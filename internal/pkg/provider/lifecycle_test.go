@@ -199,6 +199,85 @@ networks:
 	}
 }
 
+func TestInstantiateVMStorageProfileSelectsTaggedHost(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig()
+	cfg.OpenNebula.Hypervisor = "auto"
+	client := opennebulafake.New()
+	client.Templates["talos-base"] = opennebula.TemplateRef{ID: 11, Name: "talos-base"}
+	client.Images["talos-opennebula-amd64-v1.9.0-schematic-schem-123"] = opennebula.ImageRef{ID: 21, Name: "talos-opennebula-amd64-v1.9.0-schematic-schem-123", Datastore: "fast-ssd"}
+	client.Datastores["fast-ssd"] = opennebula.DatastoreRef{ID: 31, Name: "fast-ssd", Capabilities: []string{"root-disk", "ceph-rbd"}, CephBacked: true}
+	client.Networks["prod-lan"] = opennebula.NetworkRef{ID: 41, Name: "prod-lan"}
+	client.Hosts = []opennebula.HostInfo{
+		{ID: 1, Name: "host-1", ClusterID: 1, ClusterName: "default", Hypervisor: "qemu", Tags: []string{"local-root"}, Enabled: true, Schedulable: true, CPUTotal: 1000, MemoryTotalMiB: 4096},
+		{ID: 2, Name: "host-2", ClusterID: 1, ClusterName: "default", Hypervisor: "qemu", Tags: []string{"ceph-rbd"}, Enabled: true, Schedulable: true, CPUTotal: 1000, MemoryTotalMiB: 4096},
+	}
+
+	provisioner := NewProvisioner(client, cfg, nil, nil)
+	machineRequest := newMachineRequest(t, `
+schemaVersion: v1alpha2
+flavor: small
+datastore: fast-ssd
+networks:
+  - name: prod-lan
+placement:
+  storageProfile: ceph-rbd
+`)
+	state := resources.NewMachine("default", machineRequest.Metadata().ID())
+	state.TypedSpec().Value.VmName = "worker-01"
+	state.TypedSpec().Value.SchematicId = "schem-123"
+	pctx := newProvisionContext(machineRequest, state, "schem-123")
+
+	if err := provisioner.instantiateVM(context.Background(), zap.NewNop(), pctx); err != nil {
+		t.Fatalf("instantiateVM() error = %v", err)
+	}
+
+	if got := state.TypedSpec().Value.ResolvedHostName; got != "host-2" {
+		t.Fatalf("expected ceph host host-2, got %q", got)
+	}
+	if got := state.TypedSpec().Value.ResolvedStorageProfile; got != "ceph-rbd" {
+		t.Fatalf("expected resolved storage profile ceph-rbd, got %q", got)
+	}
+}
+
+func TestExplainReturnsResolvedSelections(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig()
+	client := opennebulafake.New()
+	client.Templates["talos-base"] = opennebula.TemplateRef{ID: 11, Name: "talos-base"}
+	client.Datastores["fast-ssd"] = opennebula.DatastoreRef{ID: 31, Name: "fast-ssd", Capabilities: []string{"root-disk", "local-root"}}
+	client.Networks["prod-lan"] = opennebula.NetworkRef{ID: 41, Name: "prod-lan"}
+	client.Images["talos-opennebula-amd64-v1.10.0-schematic-default"] = opennebula.ImageRef{ID: 21, Name: "talos-opennebula-amd64-v1.10.0-schematic-default", Datastore: "fast-ssd"}
+
+	provisioner := NewProvisioner(client, cfg, nil, nil)
+	result, err := provisioner.Explain(context.Background(), ExplainInput{
+		ProviderData: ProviderData{
+			SchemaVersion: "v1alpha1",
+			Flavor:        "small",
+			Datastore:     "fast-ssd",
+			Networks:      []NetworkRef{{Name: "prod-lan"}},
+		},
+		TalosVersion: "v1.10.0",
+		SchematicID:  "default",
+		Architecture: "amd64",
+	})
+	if err != nil {
+		t.Fatalf("Explain() error = %v", err)
+	}
+
+	if result.Hypervisor == "" {
+		t.Fatal("expected resolved hypervisor")
+	}
+	if result.Placement.Selected.Name == "" {
+		t.Fatal("expected selected host")
+	}
+	if result.Image.Action == "" {
+		t.Fatal("expected predicted image action")
+	}
+}
+
 func TestInstantiateVMExplicitQEMU(t *testing.T) {
 	t.Parallel()
 

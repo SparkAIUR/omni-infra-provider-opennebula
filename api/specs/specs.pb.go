@@ -24,49 +24,53 @@ const (
 
 // MachineSpec is stored in Omni in the infra provisioner state.
 type MachineSpec struct {
-	state                   protoimpl.MessageState `protogen:"open.v1"`
-	VmId                    int32                  `protobuf:"varint,1,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
-	VmName                  string                 `protobuf:"bytes,2,opt,name=vm_name,json=vmName,proto3" json:"vm_name,omitempty"`
-	TemplateName            string                 `protobuf:"bytes,3,opt,name=template_name,json=templateName,proto3" json:"template_name,omitempty"`
-	TemplateId              int32                  `protobuf:"varint,4,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
-	ImageName               string                 `protobuf:"bytes,5,opt,name=image_name,json=imageName,proto3" json:"image_name,omitempty"`
-	Datastore               string                 `protobuf:"bytes,6,opt,name=datastore,proto3" json:"datastore,omitempty"`
-	NetworkNames            []string               `protobuf:"bytes,7,rep,name=network_names,json=networkNames,proto3" json:"network_names,omitempty"`
-	SchematicId             string                 `protobuf:"bytes,8,opt,name=schematic_id,json=schematicId,proto3" json:"schematic_id,omitempty"`
-	TalosVersion            string                 `protobuf:"bytes,9,opt,name=talos_version,json=talosVersion,proto3" json:"talos_version,omitempty"`
-	Flavor                  string                 `protobuf:"bytes,10,opt,name=flavor,proto3" json:"flavor,omitempty"`
-	Phase                   string                 `protobuf:"bytes,11,opt,name=phase,proto3" json:"phase,omitempty"`
-	LastError               string                 `protobuf:"bytes,12,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
-	ImageId                 int32                  `protobuf:"varint,13,opt,name=image_id,json=imageId,proto3" json:"image_id,omitempty"`
-	ImageSource             string                 `protobuf:"bytes,14,opt,name=image_source,json=imageSource,proto3" json:"image_source,omitempty"`
-	ImageChecksum           string                 `protobuf:"bytes,15,opt,name=image_checksum,json=imageChecksum,proto3" json:"image_checksum,omitempty"`
-	LastSuccessfulPhaseAt   string                 `protobuf:"bytes,16,opt,name=last_successful_phase_at,json=lastSuccessfulPhaseAt,proto3" json:"last_successful_phase_at,omitempty"`
-	LastRetryClassification string                 `protobuf:"bytes,17,opt,name=last_retry_classification,json=lastRetryClassification,proto3" json:"last_retry_classification,omitempty"`
-	ClusterName             string                 `protobuf:"bytes,18,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
-	ClusterPrefix           string                 `protobuf:"bytes,19,opt,name=cluster_prefix,json=clusterPrefix,proto3" json:"cluster_prefix,omitempty"`
-	NodeRole                string                 `protobuf:"bytes,20,opt,name=node_role,json=nodeRole,proto3" json:"node_role,omitempty"`
-	SequenceNumber          int32                  `protobuf:"varint,21,opt,name=sequence_number,json=sequenceNumber,proto3" json:"sequence_number,omitempty"`
-	ReservationId           string                 `protobuf:"bytes,22,opt,name=reservation_id,json=reservationId,proto3" json:"reservation_id,omitempty"`
-	DatastoreId             int32                  `protobuf:"varint,23,opt,name=datastore_id,json=datastoreId,proto3" json:"datastore_id,omitempty"`
-	NetworkIds              []int32                `protobuf:"varint,24,rep,packed,name=network_ids,json=networkIds,proto3" json:"network_ids,omitempty"`
-	ResolvedHypervisor      string                 `protobuf:"bytes,25,opt,name=resolved_hypervisor,json=resolvedHypervisor,proto3" json:"resolved_hypervisor,omitempty"`
-	ResolvedHostId          int32                  `protobuf:"varint,26,opt,name=resolved_host_id,json=resolvedHostId,proto3" json:"resolved_host_id,omitempty"`
-	ResolvedHostName        string                 `protobuf:"bytes,27,opt,name=resolved_host_name,json=resolvedHostName,proto3" json:"resolved_host_name,omitempty"`
-	ResolvedClusterId       int32                  `protobuf:"varint,28,opt,name=resolved_cluster_id,json=resolvedClusterId,proto3" json:"resolved_cluster_id,omitempty"`
-	ResolvedClusterName     string                 `protobuf:"bytes,29,opt,name=resolved_cluster_name,json=resolvedClusterName,proto3" json:"resolved_cluster_name,omitempty"`
-	PlacementReason         string                 `protobuf:"bytes,30,opt,name=placement_reason,json=placementReason,proto3" json:"placement_reason,omitempty"`
-	PlacementScoreSummary   string                 `protobuf:"bytes,31,opt,name=placement_score_summary,json=placementScoreSummary,proto3" json:"placement_score_summary,omitempty"`
-	PreflightStatus         string                 `protobuf:"bytes,32,opt,name=preflight_status,json=preflightStatus,proto3" json:"preflight_status,omitempty"`
-	PreflightErrors         []string               `protobuf:"bytes,33,rep,name=preflight_errors,json=preflightErrors,proto3" json:"preflight_errors,omitempty"`
-	PreflightWarnings       []string               `protobuf:"bytes,34,rep,name=preflight_warnings,json=preflightWarnings,proto3" json:"preflight_warnings,omitempty"`
-	ImageAction             string                 `protobuf:"bytes,35,opt,name=image_action,json=imageAction,proto3" json:"image_action,omitempty"`
-	ImageCacheHit           bool                   `protobuf:"varint,36,opt,name=image_cache_hit,json=imageCacheHit,proto3" json:"image_cache_hit,omitempty"`
-	ImageChecksumVerified   bool                   `protobuf:"varint,37,opt,name=image_checksum_verified,json=imageChecksumVerified,proto3" json:"image_checksum_verified,omitempty"`
-	BootstrapProfile        string                 `protobuf:"bytes,38,opt,name=bootstrap_profile,json=bootstrapProfile,proto3" json:"bootstrap_profile,omitempty"`
-	DriftStatus             string                 `protobuf:"bytes,39,opt,name=drift_status,json=driftStatus,proto3" json:"drift_status,omitempty"`
-	DriftDetails            []string               `protobuf:"bytes,40,rep,name=drift_details,json=driftDetails,proto3" json:"drift_details,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	state                         protoimpl.MessageState `protogen:"open.v1"`
+	VmId                          int32                  `protobuf:"varint,1,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
+	VmName                        string                 `protobuf:"bytes,2,opt,name=vm_name,json=vmName,proto3" json:"vm_name,omitempty"`
+	TemplateName                  string                 `protobuf:"bytes,3,opt,name=template_name,json=templateName,proto3" json:"template_name,omitempty"`
+	TemplateId                    int32                  `protobuf:"varint,4,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+	ImageName                     string                 `protobuf:"bytes,5,opt,name=image_name,json=imageName,proto3" json:"image_name,omitempty"`
+	Datastore                     string                 `protobuf:"bytes,6,opt,name=datastore,proto3" json:"datastore,omitempty"`
+	NetworkNames                  []string               `protobuf:"bytes,7,rep,name=network_names,json=networkNames,proto3" json:"network_names,omitempty"`
+	SchematicId                   string                 `protobuf:"bytes,8,opt,name=schematic_id,json=schematicId,proto3" json:"schematic_id,omitempty"`
+	TalosVersion                  string                 `protobuf:"bytes,9,opt,name=talos_version,json=talosVersion,proto3" json:"talos_version,omitempty"`
+	Flavor                        string                 `protobuf:"bytes,10,opt,name=flavor,proto3" json:"flavor,omitempty"`
+	Phase                         string                 `protobuf:"bytes,11,opt,name=phase,proto3" json:"phase,omitempty"`
+	LastError                     string                 `protobuf:"bytes,12,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
+	ImageId                       int32                  `protobuf:"varint,13,opt,name=image_id,json=imageId,proto3" json:"image_id,omitempty"`
+	ImageSource                   string                 `protobuf:"bytes,14,opt,name=image_source,json=imageSource,proto3" json:"image_source,omitempty"`
+	ImageChecksum                 string                 `protobuf:"bytes,15,opt,name=image_checksum,json=imageChecksum,proto3" json:"image_checksum,omitempty"`
+	LastSuccessfulPhaseAt         string                 `protobuf:"bytes,16,opt,name=last_successful_phase_at,json=lastSuccessfulPhaseAt,proto3" json:"last_successful_phase_at,omitempty"`
+	LastRetryClassification       string                 `protobuf:"bytes,17,opt,name=last_retry_classification,json=lastRetryClassification,proto3" json:"last_retry_classification,omitempty"`
+	ClusterName                   string                 `protobuf:"bytes,18,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
+	ClusterPrefix                 string                 `protobuf:"bytes,19,opt,name=cluster_prefix,json=clusterPrefix,proto3" json:"cluster_prefix,omitempty"`
+	NodeRole                      string                 `protobuf:"bytes,20,opt,name=node_role,json=nodeRole,proto3" json:"node_role,omitempty"`
+	SequenceNumber                int32                  `protobuf:"varint,21,opt,name=sequence_number,json=sequenceNumber,proto3" json:"sequence_number,omitempty"`
+	ReservationId                 string                 `protobuf:"bytes,22,opt,name=reservation_id,json=reservationId,proto3" json:"reservation_id,omitempty"`
+	DatastoreId                   int32                  `protobuf:"varint,23,opt,name=datastore_id,json=datastoreId,proto3" json:"datastore_id,omitempty"`
+	NetworkIds                    []int32                `protobuf:"varint,24,rep,packed,name=network_ids,json=networkIds,proto3" json:"network_ids,omitempty"`
+	ResolvedHypervisor            string                 `protobuf:"bytes,25,opt,name=resolved_hypervisor,json=resolvedHypervisor,proto3" json:"resolved_hypervisor,omitempty"`
+	ResolvedHostId                int32                  `protobuf:"varint,26,opt,name=resolved_host_id,json=resolvedHostId,proto3" json:"resolved_host_id,omitempty"`
+	ResolvedHostName              string                 `protobuf:"bytes,27,opt,name=resolved_host_name,json=resolvedHostName,proto3" json:"resolved_host_name,omitempty"`
+	ResolvedClusterId             int32                  `protobuf:"varint,28,opt,name=resolved_cluster_id,json=resolvedClusterId,proto3" json:"resolved_cluster_id,omitempty"`
+	ResolvedClusterName           string                 `protobuf:"bytes,29,opt,name=resolved_cluster_name,json=resolvedClusterName,proto3" json:"resolved_cluster_name,omitempty"`
+	PlacementReason               string                 `protobuf:"bytes,30,opt,name=placement_reason,json=placementReason,proto3" json:"placement_reason,omitempty"`
+	PlacementScoreSummary         string                 `protobuf:"bytes,31,opt,name=placement_score_summary,json=placementScoreSummary,proto3" json:"placement_score_summary,omitempty"`
+	PreflightStatus               string                 `protobuf:"bytes,32,opt,name=preflight_status,json=preflightStatus,proto3" json:"preflight_status,omitempty"`
+	PreflightErrors               []string               `protobuf:"bytes,33,rep,name=preflight_errors,json=preflightErrors,proto3" json:"preflight_errors,omitempty"`
+	PreflightWarnings             []string               `protobuf:"bytes,34,rep,name=preflight_warnings,json=preflightWarnings,proto3" json:"preflight_warnings,omitempty"`
+	ImageAction                   string                 `protobuf:"bytes,35,opt,name=image_action,json=imageAction,proto3" json:"image_action,omitempty"`
+	ImageCacheHit                 bool                   `protobuf:"varint,36,opt,name=image_cache_hit,json=imageCacheHit,proto3" json:"image_cache_hit,omitempty"`
+	ImageChecksumVerified         bool                   `protobuf:"varint,37,opt,name=image_checksum_verified,json=imageChecksumVerified,proto3" json:"image_checksum_verified,omitempty"`
+	BootstrapProfile              string                 `protobuf:"bytes,38,opt,name=bootstrap_profile,json=bootstrapProfile,proto3" json:"bootstrap_profile,omitempty"`
+	DriftStatus                   string                 `protobuf:"bytes,39,opt,name=drift_status,json=driftStatus,proto3" json:"drift_status,omitempty"`
+	DriftDetails                  []string               `protobuf:"bytes,40,rep,name=drift_details,json=driftDetails,proto3" json:"drift_details,omitempty"`
+	ResolvedStorageProfile        string                 `protobuf:"bytes,41,opt,name=resolved_storage_profile,json=resolvedStorageProfile,proto3" json:"resolved_storage_profile,omitempty"`
+	ResolvedHostTags              []string               `protobuf:"bytes,42,rep,name=resolved_host_tags,json=resolvedHostTags,proto3" json:"resolved_host_tags,omitempty"`
+	ResolvedDatastoreCapabilities []string               `protobuf:"bytes,43,rep,name=resolved_datastore_capabilities,json=resolvedDatastoreCapabilities,proto3" json:"resolved_datastore_capabilities,omitempty"`
+	DiagnosticFingerprint         string                 `protobuf:"bytes,44,opt,name=diagnostic_fingerprint,json=diagnosticFingerprint,proto3" json:"diagnostic_fingerprint,omitempty"`
+	unknownFields                 protoimpl.UnknownFields
+	sizeCache                     protoimpl.SizeCache
 }
 
 func (x *MachineSpec) Reset() {
@@ -379,6 +383,34 @@ func (x *MachineSpec) GetDriftDetails() []string {
 	return nil
 }
 
+func (x *MachineSpec) GetResolvedStorageProfile() string {
+	if x != nil {
+		return x.ResolvedStorageProfile
+	}
+	return ""
+}
+
+func (x *MachineSpec) GetResolvedHostTags() []string {
+	if x != nil {
+		return x.ResolvedHostTags
+	}
+	return nil
+}
+
+func (x *MachineSpec) GetResolvedDatastoreCapabilities() []string {
+	if x != nil {
+		return x.ResolvedDatastoreCapabilities
+	}
+	return nil
+}
+
+func (x *MachineSpec) GetDiagnosticFingerprint() string {
+	if x != nil {
+		return x.DiagnosticFingerprint
+	}
+	return ""
+}
+
 // NameReservationSpec stores cluster-role sequence allocations for deterministic VM naming.
 type NameReservationSpec struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
@@ -492,7 +524,7 @@ var File_specs_specs_proto protoreflect.FileDescriptor
 
 const file_specs_specs_proto_rawDesc = "" +
 	"\n" +
-	"\x11specs/specs.proto\x12\x0fopennebulaspecs\"\x9a\f\n" +
+	"\x11specs/specs.proto\x12\x0fopennebulaspecs\"\x81\x0e\n" +
 	"\vMachineSpec\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\x05R\x04vmId\x12\x17\n" +
 	"\avm_name\x18\x02 \x01(\tR\x06vmName\x12#\n" +
@@ -538,7 +570,11 @@ const file_specs_specs_proto_rawDesc = "" +
 	"\x17image_checksum_verified\x18% \x01(\bR\x15imageChecksumVerified\x12+\n" +
 	"\x11bootstrap_profile\x18& \x01(\tR\x10bootstrapProfile\x12!\n" +
 	"\fdrift_status\x18' \x01(\tR\vdriftStatus\x12#\n" +
-	"\rdrift_details\x18( \x03(\tR\fdriftDetails\"\xc2\x02\n" +
+	"\rdrift_details\x18( \x03(\tR\fdriftDetails\x128\n" +
+	"\x18resolved_storage_profile\x18) \x01(\tR\x16resolvedStorageProfile\x12,\n" +
+	"\x12resolved_host_tags\x18* \x03(\tR\x10resolvedHostTags\x12F\n" +
+	"\x1fresolved_datastore_capabilities\x18+ \x03(\tR\x1dresolvedDatastoreCapabilities\x125\n" +
+	"\x16diagnostic_fingerprint\x18, \x01(\tR\x15diagnosticFingerprint\"\xc2\x02\n" +
 	"\x13NameReservationSpec\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12%\n" +
 	"\x0ecluster_prefix\x18\x02 \x01(\tR\rclusterPrefix\x12\x12\n" +

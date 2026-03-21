@@ -9,6 +9,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -144,6 +145,100 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+var explainCmd = &cobra.Command{
+	Use:          "explain",
+	Short:        "Resolve provider inputs without mutating OpenNebula",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		runtimeConfig, err := loadRuntimeConfig()
+		if err != nil {
+			return err
+		}
+		if !runtimeConfig.Explain.Enabled {
+			return fmt.Errorf("explain is disabled by runtime config")
+		}
+
+		authConfig, err := config.ResolveAuth()
+		if err != nil {
+			return err
+		}
+
+		client, err := opennebula.NewClient(runtimeConfig, authConfig)
+		if err != nil {
+			return fmt.Errorf("create opennebula client: %w", err)
+		}
+
+		payload, err := os.ReadFile(cfg.providerDataFile)
+		if err != nil {
+			return fmt.Errorf("read providerData file %q: %w", cfg.providerDataFile, err)
+		}
+
+		data, err := provider.ParseProviderData(payload)
+		if err != nil {
+			return err
+		}
+
+		result, err := provider.NewProvisioner(client, runtimeConfig, nil, nil).Explain(cmd.Context(), provider.ExplainInput{
+			ProviderData: data,
+			TalosVersion: cfg.explainTalosVersion,
+			SchematicID:  cfg.explainSchematicID,
+			Architecture: cfg.explainArch,
+		})
+		if err != nil {
+			return err
+		}
+
+		return writeJSON(os.Stdout, result)
+	},
+}
+
+var supportBundleCmd = &cobra.Command{
+	Use:          "support-bundle",
+	Short:        "Generate a non-mutating debug bundle for a providerData payload",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		runtimeConfig, err := loadRuntimeConfig()
+		if err != nil {
+			return err
+		}
+		if !runtimeConfig.Support.Bundle.Enabled {
+			return fmt.Errorf("support bundle generation is disabled by runtime config")
+		}
+
+		authConfig, err := config.ResolveAuth()
+		if err != nil {
+			return err
+		}
+
+		client, err := opennebula.NewClient(runtimeConfig, authConfig)
+		if err != nil {
+			return fmt.Errorf("create opennebula client: %w", err)
+		}
+
+		payload, err := os.ReadFile(cfg.providerDataFile)
+		if err != nil {
+			return fmt.Errorf("read providerData file %q: %w", cfg.providerDataFile, err)
+		}
+
+		data, err := provider.ParseProviderData(payload)
+		if err != nil {
+			return err
+		}
+
+		bundle, err := provider.NewProvisioner(client, runtimeConfig, nil, nil).BuildSupportBundle(cmd.Context(), provider.ExplainInput{
+			ProviderData: data,
+			TalosVersion: cfg.explainTalosVersion,
+			SchematicID:  cfg.explainSchematicID,
+			Architecture: cfg.explainArch,
+		})
+		if err != nil {
+			return err
+		}
+
+		return writeJSON(os.Stdout, bundle)
+	},
+}
+
 var cfg struct {
 	omniAPIEndpoint     string
 	serviceAccountKey   string
@@ -151,6 +246,10 @@ var cfg struct {
 	providerDescription string
 	configFile          string
 	insecureSkipVerify  bool
+	providerDataFile    string
+	explainTalosVersion string
+	explainSchematicID  string
+	explainArch         string
 }
 
 func main() {
@@ -177,4 +276,39 @@ func init() {
 	rootCmd.Flags().BoolVar(&cfg.insecureSkipVerify, "insecure-skip-verify", false, "ignore untrusted Omni certificates")
 	rootCmd.Flags().StringVar(&cfg.configFile, "config-file", "", "provider config file")
 	_ = rootCmd.MarkFlagRequired("config-file")
+
+	explainCmd.Flags().StringVar(&cfg.providerDataFile, "provider-data-file", "", "providerData YAML/JSON file")
+	explainCmd.Flags().StringVar(&cfg.explainTalosVersion, "talos-version", "v1.10.0", "Talos version used for image prediction")
+	explainCmd.Flags().StringVar(&cfg.explainSchematicID, "schematic-id", "default", "schematic id used for image prediction")
+	explainCmd.Flags().StringVar(&cfg.explainArch, "arch", "amd64", "target architecture used for image prediction")
+	_ = explainCmd.MarkFlagRequired("provider-data-file")
+	rootCmd.AddCommand(explainCmd)
+
+	supportBundleCmd.Flags().StringVar(&cfg.providerDataFile, "provider-data-file", "", "providerData YAML/JSON file")
+	supportBundleCmd.Flags().StringVar(&cfg.explainTalosVersion, "talos-version", "v1.10.0", "Talos version used for image prediction")
+	supportBundleCmd.Flags().StringVar(&cfg.explainSchematicID, "schematic-id", "default", "schematic id used for image prediction")
+	supportBundleCmd.Flags().StringVar(&cfg.explainArch, "arch", "amd64", "target architecture used for image prediction")
+	_ = supportBundleCmd.MarkFlagRequired("provider-data-file")
+	rootCmd.AddCommand(supportBundleCmd)
+}
+
+func loadRuntimeConfig() (config.Config, error) {
+	configFile, err := os.Open(cfg.configFile)
+	if err != nil {
+		return config.Config{}, fmt.Errorf("open config file %q: %w", cfg.configFile, err)
+	}
+	defer configFile.Close() //nolint:errcheck
+
+	runtimeConfig, err := config.Load(configFile)
+	if err != nil {
+		return config.Config{}, fmt.Errorf("load config: %w", err)
+	}
+
+	return runtimeConfig, nil
+}
+
+func writeJSON(file *os.File, value any) error {
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(value)
 }

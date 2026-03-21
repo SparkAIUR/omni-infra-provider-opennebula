@@ -158,6 +158,7 @@ func (c *Client) ListHosts(_ context.Context, request parent.HostListRequest) ([
 			ClusterID:      1,
 			ClusterName:    "default",
 			Hypervisor:     hypervisor,
+			Tags:           nil,
 			Enabled:        true,
 			Schedulable:    true,
 			CPUTotal:       1600,

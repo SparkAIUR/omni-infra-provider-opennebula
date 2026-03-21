@@ -43,13 +43,23 @@ type ResolveRequest struct {
 
 // Result is the normalized image-resolution result used by the provider state machine.
 type Result struct {
-	Image           opennebula.ImageRef
-	SourceURL       string
-	Checksum        string
-	ProviderManaged bool
-	Action          string
-	CacheHit        bool
+	Image            opennebula.ImageRef
+	SourceURL        string
+	Checksum         string
+	ProviderManaged  bool
+	Action           string
+	CacheHit         bool
 	ChecksumVerified bool
+}
+
+// Prediction is the non-mutating image resolution forecast used by explain/support tooling.
+type Prediction struct {
+	Image            opennebula.ImageRef
+	Action           string
+	SourceURL        string
+	Datastore        string
+	ImportRequired   bool
+	ChecksumRequired bool
 }
 
 // Manager resolves an existing Talos image or imports it on demand.
@@ -81,8 +91,8 @@ func New(client opennebula.Client, cfg providerconfig.Config, metrics *observabi
 		httpClient: &http.Client{
 			Timeout: cfg.ImageManagement.ImportTimeout,
 		},
-		metrics: metrics,
-		locks:   map[string]*sync.Mutex{},
+		metrics:    metrics,
+		locks:      map[string]*sync.Mutex{},
 		lockSeenAt: map[string]time.Time{},
 	}
 }
@@ -217,6 +227,51 @@ func (m *Manager) Resolve(ctx context.Context, request ResolveRequest) (Result, 
 	result.CacheHit = false
 	result.ChecksumVerified = checksum != ""
 	return result, err
+}
+
+// Predict returns the expected image action without mutating OpenNebula state.
+func (m *Manager) Predict(ctx context.Context, request ResolveRequest) (Prediction, error) {
+	if request.Arch == "" {
+		request.Arch = "amd64"
+	}
+
+	datastoreName := request.Datastore
+	if datastoreName == "" {
+		datastoreName = m.config.StoragePolicies.DefaultDatastore
+	}
+
+	if imageRef, err := m.lookupImage(ctx, request.ImageName, datastoreName); err == nil {
+		return Prediction{
+			Image:            imageRef,
+			Action:           "reused",
+			Datastore:        datastoreName,
+			ImportRequired:   false,
+			ChecksumRequired: m.config.ImageManagement.RequireChecksum,
+		}, nil
+	} else if !opennebula.IsNotFoundError(err) {
+		return Prediction{}, err
+	}
+
+	allowImport := m.config.ImageManagement.ImportOnMiss
+	if request.AllowImport != nil {
+		allowImport = *request.AllowImport
+	}
+	if !allowImport {
+		return Prediction{}, fmt.Errorf("%w: image %q was not found in datastore %q and import is disabled", opennebula.ErrNotFound, request.ImageName, datastoreName)
+	}
+
+	sourceURL, err := m.renderURL(m.config.ImageManagement.ArtifactURLTemplate, request)
+	if err != nil {
+		return Prediction{}, err
+	}
+
+	return Prediction{
+		Action:           "imported",
+		SourceURL:        sourceURL,
+		Datastore:        datastoreName,
+		ImportRequired:   true,
+		ChecksumRequired: m.config.ImageManagement.RequireChecksum,
+	}, nil
 }
 
 func (m *Manager) lookupImage(ctx context.Context, imageName string, datastoreName string) (opennebula.ImageRef, error) {
@@ -448,10 +503,10 @@ func (m *Manager) renderURL(templateBody string, request ResolveRequest) (string
 
 	var builder strings.Builder
 	if err := tpl.Execute(&builder, map[string]string{
-		"Arch":             request.Arch,
-		"TalosVersion":     request.TalosVersion,
-		"TalosVersionNoV":  talosVersionNoV,
-		"SchematicID":      request.SchematicID,
+		"Arch":            request.Arch,
+		"TalosVersion":    request.TalosVersion,
+		"TalosVersionNoV": talosVersionNoV,
+		"SchematicID":     request.SchematicID,
 	}); err != nil {
 		return "", fmt.Errorf("render image artifact template: %w", err)
 	}

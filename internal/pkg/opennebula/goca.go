@@ -18,6 +18,7 @@ import (
 // GOCAClient is the production OpenNebula adapter.
 type GOCAClient struct {
 	controller *goca.Controller
+	cfg        config.Config
 }
 
 // NewClient creates a GOCA-backed OpenNebula adapter.
@@ -28,7 +29,7 @@ func NewClient(cfg config.Config, auth config.AuthConfig) (Client, error) {
 			Endpoint: cfg.OpenNebula.Endpoint,
 		})
 		if err == nil {
-			return &GOCAClient{controller: goca.NewController(client)}, nil
+			return &GOCAClient{controller: goca.NewController(client), cfg: cfg}, nil
 		}
 	}
 
@@ -37,7 +38,7 @@ func NewClient(cfg config.Config, auth config.AuthConfig) (Client, error) {
 		return nil, fmt.Errorf("create GOCA client: %w", err)
 	}
 
-	return &GOCAClient{controller: goca.NewController(client)}, nil
+	return &GOCAClient{controller: goca.NewController(client), cfg: cfg}, nil
 }
 
 // LookupTemplateByName resolves a template by name.
@@ -129,7 +130,7 @@ func (c *GOCAClient) LookupDatastoreByName(ctx context.Context, name string) (Da
 		return DatastoreRef{}, fmt.Errorf("info datastore %q: %w", name, err)
 	}
 
-	return DatastoreRef{ID: id, Name: datastore.Name, FreeMB: datastore.FreeMB}, nil
+	return normalizeDatastoreRef(id, datastore.Name, datastore.FreeMB, datastore.Type, datastore.DiskType, datastore.DSMad, datastore.TMMad), nil
 }
 
 // LookupNetworksByName resolves a set of networks by name.
@@ -178,6 +179,7 @@ func (c *GOCAClient) ListHosts(ctx context.Context, request HostListRequest) ([]
 			ClusterID:      host.ClusterID,
 			ClusterName:    host.Cluster,
 			Hypervisor:     strings.ToLower(strings.TrimSpace(host.VMMAD)),
+			Tags:           c.cfg.HostTags(host.Name),
 			Enabled:        strings.EqualFold(state, "MONITORED"),
 			Schedulable:    strings.EqualFold(state, "MONITORED"),
 			CPUTotal:       host.Share.MaxCPU,
@@ -189,6 +191,40 @@ func (c *GOCAClient) ListHosts(ctx context.Context, request HostListRequest) ([]
 	}
 
 	return hosts, nil
+}
+
+func normalizeDatastoreRef(id int, name string, freeMB int, dsType string, diskType string, dsMad string, tmMad string) DatastoreRef {
+	dsMad = strings.ToLower(strings.TrimSpace(dsMad))
+	tmMad = strings.ToLower(strings.TrimSpace(tmMad))
+	dsType = strings.ToLower(strings.TrimSpace(dsType))
+	diskType = strings.ToLower(strings.TrimSpace(diskType))
+
+	capabilities := []string{"root-disk"}
+	cephBacked := strings.Contains(dsMad, "ceph") || strings.Contains(tmMad, "ceph")
+	if cephBacked {
+		capabilities = append(capabilities, "ceph-backed")
+	}
+	if strings.Contains(dsMad, "cephfs") {
+		capabilities = append(capabilities, "cephfs-capable")
+	}
+	if cephBacked && !strings.Contains(dsMad, "cephfs") {
+		capabilities = append(capabilities, "ceph-rbd-compatible")
+	}
+	if !cephBacked {
+		capabilities = append(capabilities, "local-root")
+	}
+
+	return DatastoreRef{
+		ID:           id,
+		Name:         name,
+		FreeMB:       freeMB,
+		Type:         dsType,
+		DiskType:     diskType,
+		DSMad:        dsMad,
+		TMMad:        tmMad,
+		CephBacked:   cephBacked,
+		Capabilities: capabilities,
+	}
 }
 
 // ResolveHypervisor resolves the supported hypervisor from eligible OpenNebula hosts.

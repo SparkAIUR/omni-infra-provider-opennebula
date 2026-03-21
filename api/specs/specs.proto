@@ -45,6 +45,10 @@ message MachineSpec {
   string bootstrap_profile = 38;
   string drift_status = 39;
   repeated string drift_details = 40;
+  string resolved_storage_profile = 41;
+  repeated string resolved_host_tags = 42;
+  repeated string resolved_datastore_capabilities = 43;
+  string diagnostic_fingerprint = 44;
 }
 
 // NameReservationSpec stores cluster-role sequence allocations for deterministic VM naming.

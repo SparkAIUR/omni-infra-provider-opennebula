@@ -55,7 +55,7 @@ func (p *Provisioner) resolveProvisionPlan(ctx context.Context, pctx provision.C
 		return ResolvedPlan{}, err
 	}
 
-	preflight := p.runPreflight(data, resources, hypervisor, placement)
+	preflight := p.runPreflight(data, resources, datastoreRef, hypervisor, placement)
 	if preflight.Status == PreflightStatusFail || (p.config.Policy.Preflight.FailOnWarnings && len(preflight.Warnings) > 0) {
 		if preflight.Status != PreflightStatusFail {
 			preflight.Status = PreflightStatusFail
@@ -68,6 +68,7 @@ func (p *Provisioner) resolveProvisionPlan(ctx context.Context, pctx provision.C
 			Networks:         networks,
 			Datastore:        datastoreRef,
 			Hypervisor:       hypervisor,
+			StorageProfile:   effectiveStorageProfile(data),
 			Placement:        placement,
 			BootstrapProfile: p.resolveBootstrapProfile(hypervisor),
 			Preflight:        preflight,
@@ -81,14 +82,16 @@ func (p *Provisioner) resolveProvisionPlan(ctx context.Context, pctx provision.C
 		Networks:         networks,
 		Datastore:        datastoreRef,
 		Hypervisor:       hypervisor,
+		StorageProfile:   effectiveStorageProfile(data),
 		Placement:        placement,
 		BootstrapProfile: p.resolveBootstrapProfile(hypervisor),
 		Preflight:        preflight,
 	}, nil
 }
 
-func (p *Provisioner) runPreflight(data ProviderData, resources ResolvedResources, hypervisor string, placement PlacementDecision) PreflightResult {
+func (p *Provisioner) runPreflight(data ProviderData, resources ResolvedResources, datastore opennebula.DatastoreRef, hypervisor string, placement PlacementDecision) PreflightResult {
 	result := PreflightResult{Status: PreflightStatusPass}
+	storageProfile := effectiveStorageProfile(data)
 
 	if resources.VCPU <= 0 || resources.MemoryMiB <= 0 || resources.RootDiskGiB <= 0 {
 		result.Errors = append(result.Errors, "resolved resources are incomplete")
@@ -108,6 +111,12 @@ func (p *Provisioner) runPreflight(data ProviderData, resources ResolvedResource
 			result.Errors = append(result.Errors, "manual networking is disabled by runtime policy")
 		}
 	}
+	if !datastoreSupportsStorageProfile(datastore, storageProfile, placement.Selected.Tags) {
+		result.Errors = append(result.Errors, fmt.Sprintf("datastore %q and selected host %q are not compatible with storageProfile %q", data.Datastore, placement.Selected.Name, storageProfile))
+	}
+	if data.Placement.NetworkZone != "" && !p.config.HostInNetworkZone(data.Placement.NetworkZone, placement.Selected.Name) {
+		result.Errors = append(result.Errors, fmt.Sprintf("selected host %q is outside placement.networkZone %q", placement.Selected.Name, data.Placement.NetworkZone))
+	}
 
 	if len(result.Errors) > 0 {
 		result.Status = PreflightStatusFail
@@ -116,6 +125,37 @@ func (p *Provisioner) runPreflight(data ProviderData, resources ResolvedResource
 	}
 
 	return result
+}
+
+func effectiveStorageProfile(data ProviderData) string {
+	if data.Placement.StorageProfile == "" {
+		return providerconfig.StorageProfileAny
+	}
+
+	return data.Placement.StorageProfile
+}
+
+func datastoreSupportsStorageProfile(datastore opennebula.DatastoreRef, profile string, hostTags []string) bool {
+	switch profile {
+	case "", providerconfig.StorageProfileAny:
+		return true
+	case providerconfig.StorageProfileLocalRoot:
+		return !datastore.CephBacked
+	case providerconfig.StorageProfileCephRBD, providerconfig.StorageProfileCephFSCapable:
+		return containsString(datastore.Capabilities, profile) && containsString(hostTags, profile)
+	default:
+		return false
+	}
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+
+	return false
 }
 
 func manualNetworksValidated(data ProviderData, cfg providerconfig.Config) bool {

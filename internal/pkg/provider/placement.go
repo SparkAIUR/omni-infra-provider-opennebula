@@ -20,6 +20,7 @@ func (p *Provisioner) selectPlacement(ctx context.Context, data ProviderData, hy
 		return PlacementDecision{}, err
 	}
 
+	requiredTags := effectiveRequiredHostTags(data, hosts)
 	candidates := make([]ScoredHost, 0, len(hosts))
 	for _, host := range hosts {
 		if data.Placement.Cluster != "" && !strings.EqualFold(host.ClusterName, data.Placement.Cluster) {
@@ -34,8 +35,14 @@ func (p *Provisioner) selectPlacement(ctx context.Context, data ProviderData, hy
 		if hypervisor != "" && !strings.EqualFold(host.Hypervisor, hypervisor) {
 			continue
 		}
+		if data.Placement.NetworkZone != "" && !p.config.HostInNetworkZone(data.Placement.NetworkZone, host.Name) {
+			continue
+		}
+		if !hostMatchesTags(host, requiredTags, data.Placement.ExcludedHostTags) {
+			continue
+		}
 
-		score, reason := p.scoreHost(host, hypervisor)
+		score, reason := p.scoreHost(host, hypervisor, data.Placement.NetworkZone, requiredTags)
 		candidates = append(candidates, ScoredHost{Host: host, Score: score, Reason: reason})
 	}
 
@@ -69,7 +76,7 @@ func (p *Provisioner) selectPlacement(ctx context.Context, data ProviderData, hy
 	}, nil
 }
 
-func (p *Provisioner) scoreHost(host opennebula.HostInfo, hypervisor string) (float64, string) {
+func (p *Provisioner) scoreHost(host opennebula.HostInfo, hypervisor string, networkZone string, requiredTags []string) (float64, string) {
 	scoring := p.config.Placement.Scoring
 	score := host.CPUHeadroomRatio()*scoring.CPUHeadroomWeight +
 		host.MemoryHeadroomRatio()*scoring.MemoryHeadroomWeight -
@@ -97,8 +104,53 @@ func (p *Provisioner) scoreHost(host opennebula.HostInfo, hypervisor string) (fl
 		score += scoring.EnvironmentBiasWeight
 		reasons = append(reasons, "environment_bias=production-kvm")
 	}
+	if p.config.Environment.Profile == providerconfig.EnvironmentProfileMixedStaging {
+		score += scoring.EnvironmentBiasWeight * 0.5
+		reasons = append(reasons, "environment_bias=mixed-staging")
+	}
+	if networkZone != "" {
+		reasons = append(reasons, "network_zone="+networkZone)
+	}
+	if len(requiredTags) > 0 {
+		reasons = append(reasons, "required_tags="+strings.Join(requiredTags, "|"))
+	}
+	if len(host.Tags) > 0 {
+		reasons = append(reasons, "host_tags="+strings.Join(host.Tags, "|"))
+	}
 
 	return score, strings.Join(reasons, ", ")
+}
+
+func hostMatchesTags(host opennebula.HostInfo, requiredTags, excludedTags []string) bool {
+	for _, tag := range requiredTags {
+		if !host.HasTag(tag) {
+			return false
+		}
+	}
+	for _, tag := range excludedTags {
+		if host.HasTag(tag) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func effectiveRequiredHostTags(data ProviderData, hosts []opennebula.HostInfo) []string {
+	required := append([]string(nil), data.Placement.RequiredHostTags...)
+	storageTag := strings.TrimSpace(data.Placement.StorageProfile)
+	if storageTag == "" || storageTag == providerconfig.StorageProfileAny {
+		return required
+	}
+
+	for _, host := range hosts {
+		if host.HasTag(storageTag) {
+			required = append(required, storageTag)
+			break
+		}
+	}
+
+	return required
 }
 
 func formatScoreSummary(candidates []ScoredHost) string {

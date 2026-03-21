@@ -295,6 +295,16 @@ func validatePlacement(data *ProviderData, cfg config.Config) error {
 		return fmt.Errorf("placement.role is not supported yet")
 	}
 
+	switch data.Placement.StorageProfile {
+	case "", config.StorageProfileAny, config.StorageProfileLocalRoot, config.StorageProfileCephRBD, config.StorageProfileCephFSCapable:
+	default:
+		return fmt.Errorf("placement.storageProfile must be %q, %q, %q, or %q", config.StorageProfileAny, config.StorageProfileLocalRoot, config.StorageProfileCephRBD, config.StorageProfileCephFSCapable)
+	}
+
+	if data.Placement.NetworkZone != "" && !cfg.HasNetworkZone(data.Placement.NetworkZone) {
+		return fmt.Errorf("placement.networkZone %q is not defined by runtime config", data.Placement.NetworkZone)
+	}
+
 	return nil
 }
 
@@ -444,7 +454,7 @@ func ResolveResources(data ProviderData, cfg config.Config) (ResolvedResources, 
 }
 
 func hasV1Alpha2Fields(data *ProviderData) bool {
-	if data.ImagePolicy.Mode != "" || data.Placement.Host != "" || data.Placement.Cluster != "" || data.Placement.VMGroup != "" || data.Placement.Role != "" || len(data.AdditionalDisks) > 0 || data.Lifecycle.DeleteMode != "" {
+	if data.ImagePolicy.Mode != "" || data.Placement.Host != "" || data.Placement.Cluster != "" || data.Placement.VMGroup != "" || data.Placement.Role != "" || data.Placement.StorageProfile != "" || len(data.Placement.RequiredHostTags) > 0 || len(data.Placement.ExcludedHostTags) > 0 || data.Placement.NetworkZone != "" || len(data.AdditionalDisks) > 0 || data.Lifecycle.DeleteMode != "" {
 		return true
 	}
 

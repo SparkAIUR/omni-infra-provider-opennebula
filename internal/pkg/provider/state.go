@@ -176,10 +176,25 @@ func SetResolvedHost(machine *resources.Machine, hostID int, hostName string) {
 	machine.TypedSpec().Value.ResolvedHostName = hostName
 }
 
+// SetResolvedHostTags persists the selected host topology tags.
+func SetResolvedHostTags(machine *resources.Machine, tags []string) {
+	machine.TypedSpec().Value.ResolvedHostTags = append([]string(nil), tags...)
+}
+
 // SetResolvedCluster persists the chosen cluster.
 func SetResolvedCluster(machine *resources.Machine, clusterID int, clusterName string) {
 	machine.TypedSpec().Value.ResolvedClusterId = int32(clusterID)
 	machine.TypedSpec().Value.ResolvedClusterName = clusterName
+}
+
+// SetResolvedStorageProfile persists the effective storage profile.
+func SetResolvedStorageProfile(machine *resources.Machine, value string) {
+	machine.TypedSpec().Value.ResolvedStorageProfile = value
+}
+
+// SetResolvedDatastoreCapabilities persists normalized datastore capability labels.
+func SetResolvedDatastoreCapabilities(machine *resources.Machine, capabilities []string) {
+	machine.TypedSpec().Value.ResolvedDatastoreCapabilities = append([]string(nil), capabilities...)
 }
 
 // SetPlacementDecision persists placement reasoning.
@@ -211,6 +226,11 @@ func SetBootstrapProfile(machine *resources.Machine, value string) {
 func SetDrift(machine *resources.Machine, status string, details []string) {
 	machine.TypedSpec().Value.DriftStatus = status
 	machine.TypedSpec().Value.DriftDetails = append([]string(nil), details...)
+}
+
+// SetDiagnosticFingerprint persists an operator-facing failure fingerprint.
+func SetDiagnosticFingerprint(machine *resources.Machine, value string) {
+	machine.TypedSpec().Value.DiagnosticFingerprint = value
 }
 
 // GetReservationID reads the provider-owned name reservation resource id.
