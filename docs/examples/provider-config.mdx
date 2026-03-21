@@ -51,10 +51,19 @@ imageManagement:
   pollInterval: 5s
   importTimeout: 20m
 environment:
-  profile: "production-kvm"
+  profile: "mixed-staging"
 placement:
   strategy: "balanced"
   preferKVMWhenAuto: true
+  hostTags:
+    hplcsiw01:
+      - "local-root"
+    hplcsiw02:
+      - "ceph-rbd"
+  networkZones:
+    staging:
+      - "hplcsiw01"
+      - "hplcsiw02"
   scoring:
     cpuHeadroomWeight: 1.0
     memoryHeadroomWeight: 1.0
@@ -107,6 +116,12 @@ observability:
   readyPath: "/readyz"
 explain:
   enabled: true
+support:
+  bundle:
+    enabled: true
+diagnostics:
+  bootstrapHints:
+    enabled: true
 limits:
   maxVCPU: 16
   maxMemoryMiB: 65536
@@ -135,12 +150,13 @@ flavors:
 - Secrets do not belong in this file.
 - If `allowedDatastores`, `allowedNetworks`, or `allowedTemplates` are empty, the provider does not restrict them.
 - `opennebula.hypervisor: auto` prefers `kvm` and falls back to `qemu`.
-- `environment.profile` lets operators start from `lab-qemu`, `production-kvm`, or fully explicit `custom` defaults.
+- `environment.profile` lets operators start from `lab-qemu`, `mixed-staging`, `production-kvm`, or fully explicit `custom` defaults.
 - `policy.preflight` turns provider-side compatibility checks into an explicit runtime contract.
-- `placement` controls deterministic host scoring, not just allow-list based placement overrides.
+- `placement` controls deterministic host scoring, storage-aware host tagging, and zone-aware placement.
 - `bootstrap.profile: auto` resolves to a qemu-friendly lab profile or a production-oriented kvm profile.
 - `networkProfiles.<name>.manualValidated` marks profiles that are approved for `networkContextMode: manual`.
 - `explain.enabled` keeps the non-mutating explainability surfaces available for operator workflows.
+- `support.bundle.enabled` and `diagnostics.bootstrapHints.enabled` keep the new debug paths available.
 - `imageNamePattern` should include `{{ .Datastore }}` when the same Talos artifact can be imported into more than one OpenNebula datastore.
 - `hostnameStrategy: cluster-role-sequence` is recommended when the VM name must match the Talos hostname exactly.
 - `imageManagement` turns missing-image resolution into a provider-managed import flow.

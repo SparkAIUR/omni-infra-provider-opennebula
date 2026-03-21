@@ -51,6 +51,10 @@ message MachineSpec {
   string bootstrap_profile = 38;
   string drift_status = 39;
   repeated string drift_details = 40;
+  string resolved_storage_profile = 41;
+  repeated string resolved_host_tags = 42;
+  repeated string resolved_datastore_capabilities = 43;
+  string diagnostic_fingerprint = 44;
 }
 ```
 
@@ -63,11 +67,13 @@ message MachineSpec {
 - `phase`, `last_error`, `last_successful_phase_at`, and `last_retry_classification` support retry and troubleshooting.
 - `cluster_*`, `node_role`, `sequence_number`, and `reservation_id` preserve deterministic hostname allocation.
 - `resolved_hypervisor`, `resolved_host_*`, and `resolved_cluster_*` capture the authoritative runtime selection made by the provider.
+- `resolved_storage_profile`, `resolved_host_tags`, and `resolved_datastore_capabilities` capture the storage and topology decision inputs used during placement.
 - `placement_reason` and `placement_score_summary` explain why a specific host won provider-side scoring.
 - `preflight_*` surfaces compatibility failures and degraded warnings before or during provisioning.
 - `image_action`, `image_cache_hit`, and `image_checksum_verified` explain whether the provider reused, waited on, or imported a Talos artifact.
 - `bootstrap_profile` shows whether the provider applied lab or production bootstrap behavior.
 - `drift_status` and `drift_details` expose externally deleted or failed VMs as actionable operator-facing drift.
+- `diagnostic_fingerprint` gives operators a compact bootstrap/debug hint when a VM is pending or fails before reaching steady state.
 
 ## Lifecycle expectations
 

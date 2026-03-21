@@ -17,7 +17,7 @@ schemaVersion: v1alpha1
 schemaVersion: v1alpha2
 ```
 
-`v1alpha1` remains supported for compatibility. `v1alpha2` adds image policy, placement, additional disks, network profiles, per-network mode/model hints, and request-level delete behavior.
+`v1alpha1` remains supported for compatibility. `v1alpha2` adds image policy, placement, storage-aware host selection, additional disks, network profiles, per-network mode/model hints, and request-level delete behavior.
 
 ## Supported fields
 
@@ -55,6 +55,12 @@ placement:
   host: compute-01
   cluster: cluster-a
   vmGroup: control-plane
+  storageProfile: ceph-rbd
+  requiredHostTags:
+    - ceph-rbd
+  excludedHostTags:
+    - frontend
+  networkZone: staging
 additionalDisks:
   - name: state
     sizeGiB: 20
@@ -78,6 +84,9 @@ gpu:
 - `manual` networking requires `staticNetwork`.
 - `imagePolicy.mode` supports `reuse-only` and `reuse-or-import`.
 - `placement` and `additionalDisks` are policy-gated by the provider runtime config.
+- `placement.storageProfile` supports `any`, `local-root`, `ceph-rbd`, and `cephfs-capable`.
+- `placement.requiredHostTags` and `placement.excludedHostTags` let operators target runtime-tagged hosts safely.
+- `placement.networkZone` must match a zone defined in runtime config.
 - `lifecycle.deleteMode` supports `terminate` and `hard`. `normal` is accepted as a compatibility alias.
 - `gpu` remains schema-visible but is rejected unless the feature flag enables it.
 - Hostname is derived from the Omni request ID and is not user-configurable.
@@ -108,6 +117,13 @@ ETH0_DNS = "..."
 - `reuse-only` means the provider must find an existing Talos image in OpenNebula.
 - `reuse-or-import` allows the provider to import a missing Talos image when runtime config enables import and provides artifact/checksum URLs.
 - Imported image ID, source URL, and checksum are persisted in provider state.
+
+## Placement behavior
+
+- `storageProfile: local-root` prefers non-Ceph root-disk placement.
+- `storageProfile: ceph-rbd` requires a Ceph RBD-compatible datastore plus a host tagged for that path.
+- `storageProfile: cephfs-capable` requires a CephFS-capable datastore plus a host tagged for that path.
+- Host tags and network zones are runtime-provider concerns; they are not discovered from Omni machine classes alone.
 
 ## Examples
 

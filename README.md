@@ -49,10 +49,11 @@ Then start with:
 The runtime config is the public contract for most provider behavior. Operators can set:
 
 - OpenNebula endpoint and template defaults
-- environment profile defaults for `lab-qemu`, `production-kvm`, or `custom`
+- environment profile defaults for `lab-qemu`, `mixed-staging`, `production-kvm`, or `custom`
 - hypervisor mode: `auto`, `kvm`, or `qemu`
 - allowed templates, datastores, and networks
 - provider-side placement scoring and host preference behavior
+- storage-aware placement profiles, host tags, and network zones
 - provider-side preflight and manual-networking guardrails
 - bootstrap profile and timing behavior
 - network profiles
@@ -62,6 +63,7 @@ The runtime config is the public contract for most provider behavior. Operators 
 - datastore defaults
 - hostname strategy
 - explainability and richer provider state
+- non-mutating `explain` and `support-bundle` operator commands
 - observability paths and listen address
 
 Example:
@@ -84,7 +86,7 @@ defaults:
   flavor: medium
   hostnameStrategy: cluster-role-sequence
 environment:
-  profile: production-kvm
+  profile: mixed-staging
 imageManagement:
   importOnMiss: true
   requireChecksum: true
@@ -92,6 +94,15 @@ imageManagement:
   checksumURLTemplate: https://factory.talos.dev/image/{{ .SchematicID }}/{{ .TalosVersion }}/opennebula-{{ .Arch }}.qcow2.sha256
 placement:
   strategy: balanced
+  hostTags:
+    hplcsiw01:
+      - local-root
+    hplcsiw02:
+      - ceph-rbd
+  networkZones:
+    staging:
+      - hplcsiw01
+      - hplcsiw02
 policy:
   preflight:
     enabled: true
@@ -122,10 +133,29 @@ Reliability and explainability behavior:
 
 - provider-side preflight runs before instantiate and persists warnings/errors into provider state
 - provider-side placement scoring persists the resolved host, resolved cluster, and selection reason
+- placement can now enforce `storageProfile`, required/excluded host tags, and zone-aware host selection
 - image resolution records whether the provider reused or imported the selected Talos artifact
 - image names should include the target datastore when the same Talos artifact is imported into multiple OpenNebula datastores
 - bootstrap profile selection distinguishes qemu-style lab timing from kvm-style production timing
 - the provider no longer hardcodes `CPU_MODEL`; keep CPU model policy in the base OpenNebula template or environment-specific template clones
+- `explain` prints a non-mutating resolution result for a providerData payload
+- `support-bundle` prints a portable debug snapshot containing explain output plus live host/datastore inventory
+
+Example operator commands:
+
+```bash
+omni-infra-provider-opennebula explain \
+  --config-file ./config.yaml \
+  --provider-data-file ./provider-data.yaml \
+  --talos-version v1.10.0 \
+  --schematic-id default
+
+omni-infra-provider-opennebula support-bundle \
+  --config-file ./config.yaml \
+  --provider-data-file ./provider-data.yaml \
+  --talos-version v1.10.0 \
+  --schematic-id default
+```
 
 ## Versioning and releases
 
