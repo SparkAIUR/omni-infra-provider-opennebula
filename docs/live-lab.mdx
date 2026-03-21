@@ -34,7 +34,7 @@ The original `lxc` fixtures remained intact while a parallel qemu VM path was us
 
 Important lab finding:
 
-- The current staging baseline uses `CPU_MODEL = [ MODEL = "host-passthrough" ]`.
+- The provider should not hardcode `CPU_MODEL`; keep any lab-specific CPU policy in the OpenNebula template when needed.
 - The bridge gateway address had to persist on `onebr1`; otherwise Talos booted but never reached Omni.
 
 ## Omni deployment

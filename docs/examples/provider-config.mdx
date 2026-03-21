@@ -22,7 +22,7 @@ opennebula:
   allowedNetworks:
     - "talos-prod"
     - "talos-mgmt"
-  imageNamePattern: "talos-opennebula-{{ .Arch }}-{{ .TalosVersion }}-schematic-{{ .SchematicID }}"
+  imageNamePattern: "talos-opennebula-{{ .Arch }}-{{ .TalosVersion }}-{{ .Datastore }}-schematic-{{ .SchematicID }}"
 defaults:
   flavor: "small"
   firmware: "uefi"
@@ -141,7 +141,7 @@ flavors:
 - `bootstrap.profile: auto` resolves to a qemu-friendly lab profile or a production-oriented kvm profile.
 - `networkProfiles.<name>.manualValidated` marks profiles that are approved for `networkContextMode: manual`.
 - `explain.enabled` keeps the non-mutating explainability surfaces available for operator workflows.
-- `imageNamePattern` should match the Talos image naming used in your OpenNebula image catalog.
+- `imageNamePattern` should include `{{ .Datastore }}` when the same Talos artifact can be imported into more than one OpenNebula datastore.
 - `hostnameStrategy: cluster-role-sequence` is recommended when the VM name must match the Talos hostname exactly.
 - `imageManagement` turns missing-image resolution into a provider-managed import flow.
 - `observability` exposes Prometheus metrics plus `/healthz` and `/readyz`.

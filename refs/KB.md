@@ -30,7 +30,8 @@
 - OpenNebula `7.0.1` on the live lab can keep deleted VMs visible as historical `DONE` records after they disappear from active inventory; deprovision convergence must treat `DONE` as terminal.
 - The single-host live lab required `onebr1` to keep `172.22.0.1/24` persistently assigned or Talos nodes would boot but never reach Omni.
 - The Talos OpenNebula platform uses `SET_HOSTNAME`, not `HOSTNAME`, for hostname configuration.
-- The current validated compatibility set uses `CPU_MODEL = [ MODEL = "host-passthrough" ]` for provisioned VMs.
+- The provider should not hardcode `CPU_MODEL`; keep CPU model policy in the OpenNebula template or in environment-specific template clones.
+- Talos image names must include the target datastore when the same artifact can be imported into both local and Ceph-backed OpenNebula datastores, otherwise OpenNebula global image-name uniqueness causes cross-datastore collisions.
 - `networkContextMode: manual` remains unvalidated on that exact lab even when the provider emits the documented Talos OpenNebula manual context.
 - The staging lab rebuild automation now lives under `hack/labctl/` as a typed Python CLI with phase state persisted under `.out/labctl/.../state.json`.
 - `labctl` intentionally reuses the existing `.assh` DNS, VXLAN, provider bootstrap, and artifact helpers rather than replacing them with a second shell surface.

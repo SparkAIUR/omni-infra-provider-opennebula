@@ -132,5 +132,5 @@ The provider can import a missing Talos image when `imageManagement.importOnMiss
 Additional live-lab prerequisites:
 
 - OpenNebula VM path must be functional on the target host.
-- The Talos template CPU model must be compatible with the guest image. The current baseline uses `CPU_MODEL = [ MODEL = "host-passthrough" ]`.
+- Do not rely on the provider to inject a CPU model. If your environment needs a specific CPU mode or model, keep it in the base OpenNebula template or a dedicated template clone for that environment.
 - If you use a temporary public hostname such as `sslip.io` or `nip.io`, verify TLS issuance and firewall rules before starting the provider.

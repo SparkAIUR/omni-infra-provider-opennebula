@@ -73,6 +73,7 @@ opennebula:
   templateName: talos-omni-base
   hypervisor: auto
   resourcePool: staging-kvm
+  imageNamePattern: talos-opennebula-{{ .Arch }}-{{ .TalosVersion }}-{{ .Datastore }}-schematic-{{ .SchematicID }}
   allowedDatastores:
     - default
     - ceph-images
@@ -122,7 +123,9 @@ Reliability and explainability behavior:
 - provider-side preflight runs before instantiate and persists warnings/errors into provider state
 - provider-side placement scoring persists the resolved host, resolved cluster, and selection reason
 - image resolution records whether the provider reused or imported the selected Talos artifact
+- image names should include the target datastore when the same Talos artifact is imported into multiple OpenNebula datastores
 - bootstrap profile selection distinguishes qemu-style lab timing from kvm-style production timing
+- the provider no longer hardcodes `CPU_MODEL`; keep CPU model policy in the base OpenNebula template or environment-specific template clones
 
 ## Versioning and releases
 
