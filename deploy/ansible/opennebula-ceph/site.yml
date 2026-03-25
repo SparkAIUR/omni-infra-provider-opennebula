@@ -1,0 +1,47 @@
+---
+- name: Inventory and bootstrap validation
+  hosts: ceph_bootstrap
+  gather_facts: true
+  any_errors_fatal: true
+  roles:
+    - role: ceph_bootstrap
+      tags:
+        - inventory
+        - ceph-bootstrap
+
+- name: Build Ceph cluster shape
+  hosts: ceph_bootstrap
+  gather_facts: false
+  any_errors_fatal: true
+  roles:
+    - role: ceph_cluster
+      tags:
+        - ceph-cluster
+
+- name: Create Ceph auth material
+  hosts: ceph_bootstrap
+  gather_facts: false
+  any_errors_fatal: true
+  roles:
+    - role: ceph_auth
+      tags:
+        - ceph-auth
+
+- name: Prepare OpenNebula Ceph client hosts
+  hosts: opennebula_hypervisors:opennebula_frontend
+  gather_facts: true
+  any_errors_fatal: true
+  roles:
+    - role: opennebula_ceph_clients
+      tags:
+        - opennebula-clients
+
+- name: Create OpenNebula datastores
+  hosts: opennebula_frontend
+  gather_facts: false
+  any_errors_fatal: true
+  roles:
+    - role: opennebula_datastores
+      tags:
+        - opennebula-datastores
+        - postcheck

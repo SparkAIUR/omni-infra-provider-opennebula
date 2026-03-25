@@ -1,0 +1,150 @@
+---
+- name: Ensure ceph bootstrap host group is singular
+  ansible.builtin.assert:
+    that:
+      - groups['ceph_bootstrap'] | length == 1
+    fail_msg: "Exactly one host must be present in ceph_bootstrap."
+  tags:
+    - inventory
+    - ceph-bootstrap
+
+- name: Ensure cephadm is installed
+  ansible.builtin.command: cephadm version
+  register: cephadm_version
+  changed_when: false
+  tags:
+    - inventory
+    - ceph-bootstrap
+
+- name: Check current Ceph fsid
+  ansible.builtin.command: cephadm shell -- ceph fsid
+  register: ceph_fsid_check
+  changed_when: false
+  failed_when: false
+  tags:
+    - inventory
+    - ceph-bootstrap
+
+- name: Record whether Ceph cluster already exists
+  ansible.builtin.set_fact:
+    ceph_cluster_exists: "{{ ceph_fsid_check.rc == 0 }}"
+  tags:
+    - inventory
+    - ceph-bootstrap
+
+- name: Validate configured fsid when cluster exists
+  ansible.builtin.assert:
+    that:
+      - ceph_cluster_fsid | length == 0 or ceph_fsid_check.stdout | trim == ceph_cluster_fsid
+    fail_msg: "Existing Ceph FSID does not match ceph_cluster_fsid."
+  when: ceph_cluster_exists
+  tags:
+    - inventory
+    - ceph-bootstrap
+
+- name: Validate bootstrap host has the configured MON IP
+  ansible.builtin.shell: |
+    set -euo pipefail
+    ip -br addr | awk '{print $3}' | tr ' ' '\n' | cut -d/ -f1 | grep -Fx "{{ ceph_public_ip }}"
+  register: bootstrap_mon_ip_check
+  changed_when: false
+  tags:
+    - inventory
+    - ceph-bootstrap
+
+- name: Bootstrap new Ceph cluster
+  ansible.builtin.command:
+    argv: >-
+      {{
+        ['cephadm', 'bootstrap', '--mon-ip', ceph_public_ip, '--cluster-network', ceph_cluster_network]
+        + (['--fsid', ceph_cluster_fsid] if ceph_cluster_fsid | length > 0 else [])
+        + (['--image', ceph_image] if ceph_image | length > 0 else [])
+        + (['--allow-fqdn-hostname'] if ceph_allow_fqdn_hostname else [])
+        + ceph_bootstrap_extra_args
+      }}
+  when:
+    - not ceph_cluster_exists
+    - not ansible_check_mode
+  tags:
+    - ceph-bootstrap
+
+- name: Preview bootstrap command in check mode
+  ansible.builtin.debug:
+    msg:
+      - "Would bootstrap Ceph on {{ inventory_hostname }}."
+      - "MON IP: {{ ceph_public_ip }}"
+      - "Cluster network: {{ ceph_cluster_network }}"
+  when:
+    - not ceph_cluster_exists
+    - ansible_check_mode
+  tags:
+    - ceph-bootstrap
+
+- name: Configure Ceph public network
+  ansible.builtin.command:
+    argv:
+      - cephadm
+      - shell
+      - --
+      - ceph
+      - config
+      - set
+      - mon
+      - public_network
+      - "{{ ceph_public_network }}"
+  when: not ansible_check_mode
+  tags:
+    - ceph-bootstrap
+
+- name: Configure Ceph cluster network
+  ansible.builtin.command:
+    argv:
+      - cephadm
+      - shell
+      - --
+      - ceph
+      - config
+      - set
+      - global
+      - cluster_network
+      - "{{ ceph_cluster_network }}"
+  when: not ansible_check_mode
+  tags:
+    - ceph-bootstrap
+
+- name: Build monitor placement string
+  ansible.builtin.set_fact:
+    ceph_monitor_placement: "{{ groups['ceph_monitors'] | join(',') }}"
+    ceph_manager_placement: "{{ ceph_mgr_count }} {{ groups['ceph_managers'] | join(',') }}"
+  tags:
+    - ceph-bootstrap
+
+- name: Apply MON placement
+  ansible.builtin.command:
+    argv:
+      - cephadm
+      - shell
+      - --
+      - ceph
+      - orch
+      - apply
+      - mon
+      - "--placement={{ ceph_monitor_placement }}"
+  when: not ansible_check_mode
+  tags:
+    - ceph-bootstrap
+
+- name: Apply MGR placement
+  ansible.builtin.command:
+    argv:
+      - cephadm
+      - shell
+      - --
+      - ceph
+      - orch
+      - apply
+      - mgr
+      - "--placement={{ ceph_manager_placement }}"
+  when: not ansible_check_mode
+  tags:
+    - ceph-bootstrap

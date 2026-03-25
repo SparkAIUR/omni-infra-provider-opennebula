@@ -1,0 +1,210 @@
+---
+- name: Ensure required OpenNebula CLI binaries are present
+  ansible.builtin.command: "{{ item }} --help"
+  loop:
+    - "{{ opennebula_datastore_cli_binary }}"
+    - "{{ opennebula_template_cli_binary }}"
+  register: opennebula_cli_check
+  changed_when: false
+  tags:
+    - opennebula-datastores
+    - postcheck
+
+- name: Ensure artifact directory exists locally
+  ansible.builtin.file:
+    path: "{{ opennebula_artifact_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+  tags:
+    - opennebula-datastores
+
+- name: Ensure remote OpenNebula render directory exists
+  ansible.builtin.file:
+    path: "{{ opennebula_remote_tmp_dir }}"
+    state: directory
+    mode: "0700"
+  tags:
+    - opennebula-datastores
+
+- name: Resolve effective libvirt secret UUID from bootstrap host
+  ansible.builtin.set_fact:
+    opennebula_libvirt_secret_uuid_effective: "{{ hostvars[groups['ceph_bootstrap'][0]].opennebula_libvirt_secret_uuid_effective | default(opennebula_libvirt_secret_uuid) }}"
+  tags:
+    - opennebula-datastores
+
+- name: Build monitor list from inventory when not explicitly set
+  ansible.builtin.set_fact:
+    ceph_monitor_list_effective: >-
+      {{
+        ceph_client_monitors
+        if ceph_client_monitors | length > 0
+        else (groups['ceph_monitors'] | map('extract', hostvars, 'ceph_public_ip') | list)
+      }}
+    opennebula_ceph_bridge_string: "{{ opennebula_ceph_bridge_list | join(' ') }}"
+  tags:
+    - opennebula-datastores
+
+- name: Build monitor string
+  ansible.builtin.set_fact:
+    ceph_monitor_string: "{{ ceph_monitor_list_effective | join(' ') }}"
+  tags:
+    - opennebula-datastores
+
+- name: Validate current Talos template still points at local root scheduling
+  ansible.builtin.command: "{{ opennebula_template_cli_binary }} show {{ opennebula_talos_template_name }}"
+  register: talos_template_show
+  changed_when: false
+  tags:
+    - opennebula-datastores
+
+- name: Enforce local root-disk scheduling contract
+  ansible.builtin.assert:
+    that:
+      - opennebula_expected_local_root_sched_ds in talos_template_show.stdout
+    fail_msg: "Talos base template no longer contains the expected local-root scheduling marker."
+  tags:
+    - opennebula-datastores
+
+- name: Read current datastore list as XML
+  ansible.builtin.command: "{{ opennebula_datastore_cli_binary }} list -x"
+  register: onedatastore_list_xml
+  changed_when: false
+  tags:
+    - opennebula-datastores
+    - postcheck
+
+- name: Render ceph-system datastore template locally
+  ansible.builtin.template:
+    src: ceph-system.tmpl.j2
+    dest: "{{ opennebula_remote_tmp_dir }}/ceph-system.tmpl"
+    mode: "0600"
+  tags:
+    - opennebula-datastores
+
+- name: Create ceph-system datastore when absent
+  ansible.builtin.command: "{{ opennebula_datastore_cli_binary }} create {{ opennebula_remote_tmp_dir }}/ceph-system.tmpl"
+  when:
+    - not ansible_check_mode
+    - opennebula_datastores.ceph_system.name not in onedatastore_list_xml.stdout
+  tags:
+    - opennebula-datastores
+
+- name: Refresh datastore list after ceph-system create
+  ansible.builtin.command: "{{ opennebula_datastore_cli_binary }} list -x"
+  register: onedatastore_list_xml_after_system
+  changed_when: false
+  tags:
+    - opennebula-datastores
+
+- name: Resolve ceph-system datastore id
+  ansible.builtin.shell: |
+    set -euo pipefail
+    python3 - <<'PY'
+    import re
+    import sys
+    xml = sys.stdin.read()
+    name = "{{ opennebula_datastores.ceph_system.name }}"
+    for chunk in xml.split("</DATASTORE>"):
+        if f"<NAME>{name}</NAME>" in chunk:
+            match = re.search(r"<ID>(\d+)</ID>", chunk)
+            if match:
+                print(match.group(1))
+                raise SystemExit(0)
+    raise SystemExit(1)
+    PY
+  args:
+    stdin: "{{ (onedatastore_list_xml_after_system.stdout if onedatastore_list_xml_after_system is defined else onedatastore_list_xml.stdout) }}"
+  register: ceph_system_datastore_id_result
+  changed_when: false
+  tags:
+    - opennebula-datastores
+
+- name: Set ceph-system datastore id fact
+  ansible.builtin.set_fact:
+    ceph_system_datastore_id: "{{ ceph_system_datastore_id_result.stdout | trim }}"
+  tags:
+    - opennebula-datastores
+
+- name: Render remaining datastore templates locally
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ opennebula_remote_tmp_dir }}/{{ item.dest }}"
+    mode: "0600"
+  loop:
+    - { src: "ceph-images.tmpl.j2", dest: "ceph-images.tmpl" }
+    - { src: "one-csi.tmpl.j2", dest: "one-csi.tmpl" }
+    - { src: "one-csi-cephfs.tmpl.j2", dest: "one-csi-cephfs.tmpl" }
+  tags:
+    - opennebula-datastores
+
+- name: Create remaining datastores when absent
+  ansible.builtin.command: "{{ opennebula_datastore_cli_binary }} create {{ opennebula_remote_tmp_dir }}/{{ item.file }}"
+  loop:
+    - { name: "{{ opennebula_datastores.ceph_images.name }}", file: "ceph-images.tmpl" }
+    - { name: "{{ opennebula_datastores.csi_rbd.name }}", file: "one-csi.tmpl" }
+    - { name: "{{ opennebula_datastores.csi_cephfs.name }}", file: "one-csi-cephfs.tmpl" }
+  when:
+    - not ansible_check_mode
+    - item.name not in (onedatastore_list_xml_after_system.stdout if onedatastore_list_xml_after_system is defined else onedatastore_list_xml.stdout)
+  tags:
+    - opennebula-datastores
+
+- name: Refresh datastore list for postcheck
+  ansible.builtin.command: "{{ opennebula_datastore_cli_binary }} list -x"
+  register: onedatastore_list_xml_final
+  changed_when: false
+  tags:
+    - postcheck
+
+- name: Show rendered datastore contracts in check mode
+  ansible.builtin.debug:
+    msg:
+      - "Would create datastores {{ opennebula_datastores.ceph_system.name }}, {{ opennebula_datastores.ceph_images.name }}, {{ opennebula_datastores.csi_rbd.name }}, and {{ opennebula_datastores.csi_cephfs.name }}."
+      - "ceph-system datastore id resolves at apply time and feeds COMPATIBLE_SYS_DS for ceph-images."
+  when: ansible_check_mode
+  tags:
+    - opennebula-datastores
+
+- name: Capture ceph-system datastore details
+  ansible.builtin.command: "{{ opennebula_datastore_cli_binary }} show {{ ceph_system_datastore_id }}"
+  register: ceph_system_datastore_show
+  changed_when: false
+  tags:
+    - postcheck
+
+- name: Resolve managed datastore ids for postcheck
+  ansible.builtin.shell: |
+    set -euo pipefail
+    python3 - <<'PY'
+    import re
+    import sys
+    xml = sys.stdin.read()
+    name = "{{ item }}"
+    for chunk in xml.split("</DATASTORE>"):
+        if f"<NAME>{name}</NAME>" in chunk:
+            match = re.search(r"<ID>(\d+)</ID>", chunk)
+            if match:
+                print(match.group(1))
+                raise SystemExit(0)
+    raise SystemExit(1)
+    PY
+  args:
+    stdin: "{{ onedatastore_list_xml_final.stdout }}"
+  register: managed_datastore_ids
+  changed_when: false
+  loop:
+    - "{{ opennebula_datastores.ceph_system.name }}"
+    - "{{ opennebula_datastores.ceph_images.name }}"
+    - "{{ opennebula_datastores.csi_rbd.name }}"
+    - "{{ opennebula_datastores.csi_cephfs.name }}"
+  tags:
+    - postcheck
+
+- name: Capture all managed datastore details
+  ansible.builtin.command: "{{ opennebula_datastore_cli_binary }} show {{ item }}"
+  loop: "{{ managed_datastore_ids.results | map(attribute='stdout') | map('trim') | list }}"
+  changed_when: false
+  tags:
+    - postcheck

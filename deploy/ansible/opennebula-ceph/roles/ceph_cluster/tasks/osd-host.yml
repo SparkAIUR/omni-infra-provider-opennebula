@@ -1,0 +1,22 @@
+---
+- name: Add OSD devices for {{ ceph_osd_host }}
+  ansible.builtin.command:
+    argv:
+      - cephadm
+      - shell
+      - --
+      - ceph
+      - orch
+      - daemon
+      - add
+      - osd
+      - "{{ ceph_osd_host }}:{{ item }}"
+  register: ceph_osd_add
+  changed_when: "'Created osd' in ceph_osd_add.stdout or 'Scheduled osd' in ceph_osd_add.stdout"
+  failed_when:
+    - ceph_osd_add.rc != 0
+    - "'already created' not in ceph_osd_add.stderr"
+    - "'already exists' not in ceph_osd_add.stdout"
+  loop: "{{ hostvars[ceph_osd_host].ceph_osd_devices }}"
+  tags:
+    - ceph-cluster

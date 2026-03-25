@@ -1,0 +1,46 @@
+all:
+  vars:
+    ansible_user: root
+  children:
+    ceph_bootstrap:
+      hosts:
+        prod-fe-01:
+          ansible_host: 10.10.0.10
+          ceph_public_ip: 10.10.0.10
+          ceph_osd_devices:
+            - /dev/vdb
+    ceph_monitors:
+      hosts:
+        prod-fe-01:
+        prod-hv-01:
+          ansible_host: 10.10.0.11
+          ceph_public_ip: 10.10.0.11
+          ceph_osd_devices:
+            - /dev/vdb
+        prod-hv-02:
+          ansible_host: 10.10.0.12
+          ceph_public_ip: 10.10.0.12
+          ceph_osd_devices:
+            - /dev/vdb
+    ceph_managers:
+      hosts:
+        prod-fe-01:
+        prod-hv-01:
+    ceph_mdss:
+      hosts:
+        prod-fe-01:
+        prod-hv-01:
+    ceph_osd_hosts:
+      hosts:
+        prod-fe-01:
+        prod-hv-01:
+        prod-hv-02:
+    opennebula_frontend:
+      hosts:
+        prod-fe-01:
+          opennebula_frontend_host: true
+    opennebula_hypervisors:
+      hosts:
+        prod-fe-01:
+        prod-hv-01:
+        prod-hv-02:

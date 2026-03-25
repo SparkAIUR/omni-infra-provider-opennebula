@@ -43,6 +43,7 @@
     {
       "group": "Runbooks",
       "pages": [
+        "runbooks/ceph-opennebula-storage",
         "runbooks/smoke-test",
         "runbooks/staging-lab-rebuild"
       ]

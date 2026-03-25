@@ -1,0 +1,12 @@
+NAME = "{{ opennebula_datastores.csi_cephfs.name }}"
+TYPE = "FILE_DS"
+TM_MAD = "shared"
+DS_MAD = "fs"
+SPARKAI_CSI_SHARE_BACKEND = "cephfs"
+SPARKAI_CSI_CEPHFS_FS_NAME = "{{ cephfs_name }}"
+SPARKAI_CSI_CEPHFS_ROOT_PATH = "{{ cephfs_root_path }}"
+SPARKAI_CSI_CEPHFS_SUBVOLUME_GROUP = "{{ cephfs_subvolume_group }}"
+CEPH_HOST = "{{ ceph_monitor_string }}"
+{% if ceph_use_conf %}
+CEPH_CONF = "{{ ceph_conf_path }}"
+{% endif %}

@@ -1,0 +1,216 @@
+---
+- name: Ensure local artifact directory exists
+  ansible.builtin.file:
+    path: "{{ opennebula_artifact_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+  tags:
+    - ceph-auth
+
+- name: Create OpenNebula RBD user
+  ansible.builtin.command:
+    argv:
+      - cephadm
+      - shell
+      - --
+      - ceph
+      - auth
+      - get-or-create
+      - "client.{{ opennebula_ceph_user_id }}"
+      - mon
+      - "profile rbd"
+      - osd
+      - "profile rbd pool={{ ceph_rbd_pools.images }}, profile rbd pool={{ ceph_rbd_pools.system }}, profile rbd pool={{ ceph_rbd_pools.csi }}"
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Create CSI CephFS admin user
+  ansible.builtin.command:
+    argv:
+      - cephadm
+      - shell
+      - --
+      - ceph
+      - auth
+      - get-or-create
+      - "client.{{ opennebula_csi_admin_user_id }}"
+      - mon
+      - "allow r"
+      - mds
+      - "allow rw fsname={{ cephfs_name }} path={{ cephfs_root_path }}"
+      - osd
+      - "allow rw tag cephfs *=*"
+      - mgr
+      - "allow rw"
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Create CSI CephFS node user
+  ansible.builtin.command:
+    argv:
+      - cephadm
+      - shell
+      - --
+      - ceph
+      - auth
+      - get-or-create
+      - "client.{{ opennebula_csi_node_user_id }}"
+      - mon
+      - "allow r"
+      - mds
+      - "allow rw fsname={{ cephfs_name }} path={{ cephfs_root_path }}"
+      - osd
+      - "allow rw tag cephfs *=*"
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Export OpenNebula keyring
+  ansible.builtin.command: "cephadm shell -- ceph auth get client.{{ opennebula_ceph_user_id }}"
+  register: opennebula_keyring
+  changed_when: false
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Export OpenNebula raw key
+  ansible.builtin.command: "cephadm shell -- ceph auth get-key client.{{ opennebula_ceph_user_id }}"
+  register: opennebula_raw_key
+  changed_when: false
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Export CSI admin keyring
+  ansible.builtin.command: "cephadm shell -- ceph auth get client.{{ opennebula_csi_admin_user_id }}"
+  register: opennebula_csi_admin_keyring
+  changed_when: false
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Export CSI admin raw key
+  ansible.builtin.command: "cephadm shell -- ceph auth get-key client.{{ opennebula_csi_admin_user_id }}"
+  register: opennebula_csi_admin_raw_key
+  changed_when: false
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Export CSI node keyring
+  ansible.builtin.command: "cephadm shell -- ceph auth get client.{{ opennebula_csi_node_user_id }}"
+  register: opennebula_csi_node_keyring
+  changed_when: false
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Export CSI node raw key
+  ansible.builtin.command: "cephadm shell -- ceph auth get-key client.{{ opennebula_csi_node_user_id }}"
+  register: opennebula_csi_node_raw_key
+  changed_when: false
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Persist OpenNebula keyring locally
+  ansible.builtin.copy:
+    content: "{{ opennebula_keyring.stdout }}\n"
+    dest: "{{ opennebula_ceph_keyring_local_path }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Persist OpenNebula raw key locally
+  ansible.builtin.copy:
+    content: "{{ opennebula_raw_key.stdout | trim }}\n"
+    dest: "{{ opennebula_ceph_raw_key_local_path }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Persist CSI admin keyring locally
+  ansible.builtin.copy:
+    content: "{{ opennebula_csi_admin_keyring.stdout }}\n"
+    dest: "{{ opennebula_csi_admin_keyring_local_path }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Persist CSI admin raw key locally
+  ansible.builtin.copy:
+    content: "{{ opennebula_csi_admin_raw_key.stdout | trim }}\n"
+    dest: "{{ opennebula_csi_admin_raw_key_local_path }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Persist CSI node keyring locally
+  ansible.builtin.copy:
+    content: "{{ opennebula_csi_node_keyring.stdout }}\n"
+    dest: "{{ opennebula_csi_node_keyring_local_path }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Persist CSI node raw key locally
+  ansible.builtin.copy:
+    content: "{{ opennebula_csi_node_raw_key.stdout | trim }}\n"
+    dest: "{{ opennebula_csi_node_raw_key_local_path }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  when: not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Generate libvirt secret UUID when absent
+  ansible.builtin.command: uuidgen
+  register: generated_libvirt_uuid
+  changed_when: false
+  delegate_to: localhost
+  become: false
+  when:
+    - opennebula_libvirt_secret_uuid | length == 0
+    - not ansible_check_mode
+  tags:
+    - ceph-auth
+
+- name: Set effective libvirt secret UUID
+  ansible.builtin.set_fact:
+    opennebula_libvirt_secret_uuid_effective: >-
+      {{
+        opennebula_libvirt_secret_uuid
+        if opennebula_libvirt_secret_uuid | length > 0
+        else (generated_libvirt_uuid.stdout | trim)
+      }}
+  tags:
+    - ceph-auth
+
+- name: Preview generated Ceph auth artifacts in check mode
+  ansible.builtin.debug:
+    msg:
+      - "Would create client.{{ opennebula_ceph_user_id }}, client.{{ opennebula_csi_admin_user_id }}, and client.{{ opennebula_csi_node_user_id }}."
+      - "Would persist local artifacts under {{ opennebula_artifact_dir }}."
+  when: ansible_check_mode
+  tags:
+    - ceph-auth

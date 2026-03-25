@@ -1,0 +1,65 @@
+---
+ceph_cluster_fsid: ""
+ceph_image: ""
+ceph_public_network: "10.10.0.0/24"
+ceph_cluster_network: "10.10.0.0/24"
+ceph_pool_size: 3
+ceph_pool_min_size: 2
+ceph_rbd_pools:
+  images: one-images
+  system: one-system
+  csi: one-csi
+cephfs_name: one-cephfs
+cephfs_metadata_pool: one-cephfs-meta
+cephfs_data_pool: one-cephfs-data
+cephfs_root_path: /volumes
+cephfs_subvolume_group: csi
+ceph_mds_count: 2
+ceph_mgr_count: 2
+ceph_allow_fqdn_hostname: true
+ceph_client_monitors: []
+ceph_use_conf: false
+ceph_conf_path: /etc/ceph/ceph.conf
+
+opennebula_talos_template_name: talos-omni-base
+opennebula_expected_local_root_sched_ds: "ID = 0"
+opennebula_ceph_user_id: opennebula
+opennebula_csi_admin_user_id: opennebula-csi
+opennebula_csi_node_user_id: opennebula-csi-node
+opennebula_ceph_key_path: ""
+opennebula_ceph_client_hosts: "{{ groups['opennebula_hypervisors'] | default([]) | union(groups['opennebula_frontend'] | default([])) }}"
+opennebula_ceph_bridge_list: "{{ opennebula_ceph_client_hosts }}"
+opennebula_libvirt_secret_uuid: ""
+opennebula_libvirt_secret_name: "client.opennebula secret"
+opennebula_raw_key_dir: /var/lib/one/.ceph
+opennebula_staging_dir: /var/tmp/opennebula-ceph
+opennebula_remote_tmp_dir: /tmp/opennebula-ceph-ansible
+opennebula_rbd_format: "2"
+opennebula_artifact_dir: "{{ playbook_dir }}/artifacts"
+opennebula_ceph_keyring_local_path: "{{ opennebula_artifact_dir }}/ceph.client.{{ opennebula_ceph_user_id }}.keyring"
+opennebula_ceph_raw_key_local_path: "{{ opennebula_artifact_dir }}/client.{{ opennebula_ceph_user_id }}.key"
+opennebula_csi_admin_keyring_local_path: "{{ opennebula_artifact_dir }}/ceph.client.{{ opennebula_csi_admin_user_id }}.keyring"
+opennebula_csi_admin_raw_key_local_path: "{{ opennebula_artifact_dir }}/client.{{ opennebula_csi_admin_user_id }}.key"
+opennebula_csi_node_keyring_local_path: "{{ opennebula_artifact_dir }}/ceph.client.{{ opennebula_csi_node_user_id }}.keyring"
+opennebula_csi_node_raw_key_local_path: "{{ opennebula_artifact_dir }}/client.{{ opennebula_csi_node_user_id }}.key"
+opennebula_datastores:
+  ceph_system:
+    name: ceph-system
+    type: SYSTEM_DS
+    pool_name: "{{ ceph_rbd_pools.system }}"
+  ceph_images:
+    name: ceph-images
+    type: IMAGE_DS
+    pool_name: "{{ ceph_rbd_pools.images }}"
+  csi_rbd:
+    name: one-csi
+    type: IMAGE_DS
+    pool_name: "{{ ceph_rbd_pools.csi }}"
+  csi_cephfs:
+    name: one-csi-cephfs
+    type: FILE_DS
+
+opennebula_datastore_cli_binary: onedatastore
+opennebula_template_cli_binary: onetemplate
+
+ceph_bootstrap_extra_args: []

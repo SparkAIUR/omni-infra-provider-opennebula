@@ -1,0 +1,7 @@
+---
+- name: Preview OSD device enrollment for {{ ceph_osd_host }}
+  ansible.builtin.debug:
+    msg: "Would add OSD {{ item }} on {{ ceph_osd_host }}."
+  loop: "{{ hostvars[ceph_osd_host].ceph_osd_devices }}"
+  tags:
+    - ceph-cluster

@@ -8,6 +8,8 @@
 - `bootstrap-provider.sh`: deploys the standalone provider container on a frontend
 - `run-provider-e2e.sh`: checks provider health, metrics, and base inventory
 - `collect-staging-artifacts.sh`: snapshots frontend service and OpenNebula state into a private artifact directory
+- `collect-production-ceph-inventory.sh`: gathers readonly host facts for production Ceph planning
+- `setup-production-ceph-storage.sh`: renders, reviews, and optionally executes the additive production Ceph and datastore setup flow
 
 These helpers assume operator-managed credentials and do not write secrets to the repository.
 

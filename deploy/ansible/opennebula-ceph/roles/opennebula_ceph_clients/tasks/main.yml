@@ -1,0 +1,131 @@
+---
+- name: Require virsh on OpenNebula Ceph client hosts
+  ansible.builtin.command: virsh --version
+  register: virsh_version
+  changed_when: false
+  tags:
+    - opennebula-clients
+
+- name: Resolve effective libvirt secret UUID from bootstrap host
+  ansible.builtin.set_fact:
+    opennebula_libvirt_secret_uuid_effective: "{{ hostvars[groups['ceph_bootstrap'][0]].opennebula_libvirt_secret_uuid_effective | default(opennebula_libvirt_secret_uuid) }}"
+  tags:
+    - opennebula-clients
+
+- name: Ensure OpenNebula raw key directory exists
+  ansible.builtin.file:
+    path: "{{ opennebula_raw_key_dir }}"
+    state: directory
+    mode: "0700"
+  tags:
+    - opennebula-clients
+
+- name: Place OpenNebula Ceph keyring
+  ansible.builtin.copy:
+    src: "{{ opennebula_ceph_keyring_local_path }}"
+    dest: "/etc/ceph/ceph.client.{{ opennebula_ceph_user_id }}.keyring"
+    mode: "0600"
+  when: not ansible_check_mode
+  tags:
+    - opennebula-clients
+
+- name: Place OpenNebula raw key
+  ansible.builtin.copy:
+    src: "{{ opennebula_ceph_raw_key_local_path }}"
+    dest: "{{ opennebula_raw_key_dir }}/client.{{ opennebula_ceph_user_id }}.key"
+    mode: "0600"
+  when: not ansible_check_mode
+  tags:
+    - opennebula-clients
+
+- name: Optionally place ceph.conf
+  ansible.builtin.stat:
+    path: "{{ ceph_conf_path }}"
+  register: ceph_conf_stat
+  when:
+    - ceph_use_conf
+  tags:
+    - opennebula-clients
+
+- name: Require ceph.conf when ceph_use_conf is enabled
+  ansible.builtin.assert:
+    that:
+      - ceph_conf_stat.stat.exists
+    fail_msg: "ceph_use_conf=true but {{ ceph_conf_path }} is not present on {{ inventory_hostname }}."
+  when:
+    - ceph_use_conf
+    - not ansible_check_mode
+  tags:
+    - opennebula-clients
+
+- name: Render libvirt secret definition
+  ansible.builtin.template:
+    src: libvirt-ceph-secret.xml.j2
+    dest: /tmp/opennebula-ceph-secret.xml
+    mode: "0600"
+  when: not ansible_check_mode
+  tags:
+    - opennebula-clients
+
+- name: Read current libvirt secret list
+  ansible.builtin.command: virsh -c qemu:///system secret-list --all
+  register: virsh_secret_list
+  changed_when: false
+  tags:
+    - opennebula-clients
+
+- name: Read existing target libvirt secret
+  ansible.builtin.command: "virsh -c qemu:///system secret-dumpxml {{ opennebula_libvirt_secret_uuid_effective }}"
+  register: virsh_secret_xml
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+  tags:
+    - opennebula-clients
+
+- name: Validate existing target libvirt secret metadata
+  ansible.builtin.assert:
+    that:
+      - opennebula_libvirt_secret_name in virsh_secret_xml.stdout
+    fail_msg: "Existing libvirt secret UUID {{ opennebula_libvirt_secret_uuid_effective }} does not match the expected Ceph secret name."
+  when:
+    - not ansible_check_mode
+    - virsh_secret_xml.rc == 0
+  tags:
+    - opennebula-clients
+
+- name: Define libvirt Ceph secret when absent
+  ansible.builtin.command: virsh -c qemu:///system secret-define /tmp/opennebula-ceph-secret.xml
+  when:
+    - not ansible_check_mode
+    - virsh_secret_xml.rc != 0
+  tags:
+    - opennebula-clients
+
+- name: Read local OpenNebula raw key
+  ansible.builtin.slurp:
+    src: "{{ opennebula_ceph_raw_key_local_path }}"
+  register: opennebula_raw_key_local
+  delegate_to: localhost
+  become: false
+  when: not ansible_check_mode
+  tags:
+    - opennebula-clients
+
+- name: Set libvirt secret value
+  ansible.builtin.command: >-
+    virsh -c qemu:///system secret-set-value
+    --secret {{ opennebula_libvirt_secret_uuid_effective }}
+    --base64 {{ opennebula_raw_key_local.content | b64decode | trim }}
+  when: not ansible_check_mode
+  tags:
+    - opennebula-clients
+
+- name: Preview OpenNebula client configuration in check mode
+  ansible.builtin.debug:
+    msg:
+      - "Would place keyring and raw key for client.{{ opennebula_ceph_user_id }} on {{ inventory_hostname }}."
+      - "Would ensure libvirt secret UUID {{ hostvars[groups['ceph_bootstrap'][0]].opennebula_libvirt_secret_uuid_effective | default('generated-at-apply') }}."
+  when: ansible_check_mode
+  tags:
+    - opennebula-clients

@@ -1,0 +1,160 @@
+---
+- name: Ensure Ceph host inventory includes explicit OSD devices
+  ansible.builtin.assert:
+    that:
+      - hostvars[item].ceph_osd_devices is defined
+    fail_msg: "Host {{ item }} is missing ceph_osd_devices."
+  loop: "{{ groups['ceph_osd_hosts'] | default([]) }}"
+  tags:
+    - ceph-cluster
+
+- name: Add all declared Ceph hosts to orchestrator
+  ansible.builtin.command:
+    argv:
+      - cephadm
+      - shell
+      - --
+      - ceph
+      - orch
+      - host
+      - add
+      - "{{ item }}"
+      - "{{ hostvars[item].ceph_public_ip }}"
+  register: ceph_orch_host_add
+  changed_when: "'Added host' in ceph_orch_host_add.stdout or 'added host' in ceph_orch_host_add.stdout"
+  failed_when:
+    - ceph_orch_host_add.rc != 0
+    - "'already in orchestrator' not in ceph_orch_host_add.stderr"
+    - "'already exists' not in ceph_orch_host_add.stdout"
+  loop: "{{ (groups['ceph_monitors'] | default([])) | union(groups['ceph_osd_hosts'] | default([])) | unique }}"
+  when: not ansible_check_mode
+  tags:
+    - ceph-cluster
+
+- name: Preview host enrollment in check mode
+  ansible.builtin.debug:
+    msg: "Would enroll Ceph host {{ item }} with address {{ hostvars[item].ceph_public_ip }}."
+  loop: "{{ (groups['ceph_monitors'] | default([])) | union(groups['ceph_osd_hosts'] | default([])) | unique }}"
+  when: ansible_check_mode
+  tags:
+    - ceph-cluster
+
+- name: Add explicitly listed OSD devices
+  ansible.builtin.include_tasks: osd-host.yml
+  loop: "{{ groups['ceph_osd_hosts'] | default([]) }}"
+  loop_control:
+    loop_var: ceph_osd_host
+  when: not ansible_check_mode
+  tags:
+    - ceph-cluster
+
+- name: Preview OSD enrollment in check mode
+  ansible.builtin.include_tasks: osd-host-preview.yml
+  loop: "{{ groups['ceph_osd_hosts'] | default([]) }}"
+  loop_control:
+    loop_var: ceph_osd_host
+  when: ansible_check_mode
+  tags:
+    - ceph-cluster
+
+- name: Read current pool list
+  ansible.builtin.command: cephadm shell -- ceph osd pool ls --format json
+  register: ceph_pool_list
+  changed_when: false
+  tags:
+    - ceph-cluster
+
+- name: Create required RBD and CephFS pools
+  ansible.builtin.include_tasks: pool.yml
+  loop:
+    - { name: "{{ ceph_rbd_pools.images }}", app: "rbd" }
+    - { name: "{{ ceph_rbd_pools.system }}", app: "rbd" }
+    - { name: "{{ ceph_rbd_pools.csi }}", app: "rbd" }
+    - { name: "{{ cephfs_metadata_pool }}", app: "cephfs" }
+    - { name: "{{ cephfs_data_pool }}", app: "cephfs" }
+  loop_control:
+    loop_var: ceph_pool_spec
+  tags:
+    - ceph-cluster
+
+- name: Read CephFS list
+  ansible.builtin.command: cephadm shell -- ceph fs ls --format json
+  register: ceph_fs_list
+  changed_when: false
+  tags:
+    - ceph-cluster
+
+- name: Create CephFS filesystem
+  ansible.builtin.command:
+    argv:
+      - cephadm
+      - shell
+      - --
+      - ceph
+      - fs
+      - new
+      - "{{ cephfs_name }}"
+      - "{{ cephfs_metadata_pool }}"
+      - "{{ cephfs_data_pool }}"
+  when:
+    - not ansible_check_mode
+    - cephfs_name not in (ceph_fs_list.stdout | from_json | map(attribute='name') | list)
+  tags:
+    - ceph-cluster
+
+- name: Preview CephFS create in check mode
+  ansible.builtin.debug:
+    msg: "Would create CephFS {{ cephfs_name }}."
+  when:
+    - ansible_check_mode
+    - cephfs_name not in (ceph_fs_list.stdout | from_json | map(attribute='name') | list)
+  tags:
+    - ceph-cluster
+
+- name: Read CephFS subvolume groups
+  ansible.builtin.command: "cephadm shell -- ceph fs subvolumegroup ls {{ cephfs_name }} --format json"
+  register: ceph_subvolumegroups
+  changed_when: false
+  failed_when: false
+  tags:
+    - ceph-cluster
+
+- name: Create CephFS subvolume group
+  ansible.builtin.command:
+    argv:
+      - cephadm
+      - shell
+      - --
+      - ceph
+      - fs
+      - subvolumegroup
+      - create
+      - "{{ cephfs_name }}"
+      - "{{ cephfs_subvolume_group }}"
+  when:
+    - not ansible_check_mode
+    - ceph_subvolumegroups.rc != 0 or (cephfs_subvolume_group not in (ceph_subvolumegroups.stdout | default('[]') | from_json | map(attribute='name') | list))
+  tags:
+    - ceph-cluster
+
+- name: Build MDS placement
+  ansible.builtin.set_fact:
+    ceph_mds_placement: "{{ ceph_mds_count }} {{ groups['ceph_mdss'] | join(',') }}"
+  tags:
+    - ceph-cluster
+
+- name: Apply MDS placement
+  ansible.builtin.command:
+    argv:
+      - cephadm
+      - shell
+      - --
+      - ceph
+      - orch
+      - apply
+      - mds
+      - "{{ cephfs_name }}"
+      - "--placement={{ ceph_mds_placement }}"
+  when: not ansible_check_mode
+  tags:
+    - ceph-cluster

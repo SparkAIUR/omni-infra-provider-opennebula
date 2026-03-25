@@ -1,0 +1,19 @@
+NAME = "{{ opennebula_datastores.ceph_images.name }}"
+DS_MAD = "ceph"
+TM_MAD = "ceph"
+TYPE = "IMAGE_DS"
+DISK_TYPE = "RBD"
+POOL_NAME = "{{ opennebula_datastores.ceph_images.pool_name }}"
+CEPH_HOST = "{{ ceph_monitor_string }}"
+CEPH_USER = "{{ opennebula_ceph_user_id }}"
+CEPH_SECRET = "{{ opennebula_libvirt_secret_uuid_effective }}"
+BRIDGE_LIST = "{{ opennebula_ceph_bridge_string }}"
+COMPATIBLE_SYS_DS = "{{ ceph_system_datastore_id }}"
+RBD_FORMAT = "{{ opennebula_rbd_format }}"
+STAGING_DIR = "{{ opennebula_staging_dir }}"
+{% if ceph_use_conf %}
+CEPH_CONF = "{{ ceph_conf_path }}"
+{% endif %}
+{% if ceph_use_conf and opennebula_ceph_key_path %}
+CEPH_KEY = "{{ opennebula_ceph_key_path }}"
+{% endif %}

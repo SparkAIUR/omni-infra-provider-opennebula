@@ -1,0 +1,56 @@
+---
+- name: Set current pool names
+  ansible.builtin.set_fact:
+    ceph_current_pools: "{{ ceph_pool_list.stdout | from_json }}"
+  tags:
+    - ceph-cluster
+
+- name: Create pool {{ ceph_pool_spec.name }}
+  ansible.builtin.command:
+    argv:
+      - cephadm
+      - shell
+      - --
+      - ceph
+      - osd
+      - pool
+      - create
+      - "{{ ceph_pool_spec.name }}"
+  when:
+    - not ansible_check_mode
+    - ceph_pool_spec.name not in ceph_current_pools
+  tags:
+    - ceph-cluster
+
+- name: Set pool size for {{ ceph_pool_spec.name }}
+  ansible.builtin.command: "cephadm shell -- ceph osd pool set {{ ceph_pool_spec.name }} size {{ ceph_pool_size }}"
+  when: not ansible_check_mode
+  tags:
+    - ceph-cluster
+
+- name: Set pool min_size for {{ ceph_pool_spec.name }}
+  ansible.builtin.command: "cephadm shell -- ceph osd pool set {{ ceph_pool_spec.name }} min_size {{ ceph_pool_min_size }}"
+  when: not ansible_check_mode
+  tags:
+    - ceph-cluster
+
+- name: Enable application on {{ ceph_pool_spec.name }}
+  ansible.builtin.command: "cephadm shell -- ceph osd pool application enable {{ ceph_pool_spec.name }} {{ ceph_pool_spec.app }}"
+  when: not ansible_check_mode
+  tags:
+    - ceph-cluster
+
+- name: Initialize RBD pool {{ ceph_pool_spec.name }}
+  ansible.builtin.command: "cephadm shell -- rbd pool init -p {{ ceph_pool_spec.name }}"
+  when:
+    - not ansible_check_mode
+    - ceph_pool_spec.app == 'rbd'
+  tags:
+    - ceph-cluster
+
+- name: Preview pool operation in check mode
+  ansible.builtin.debug:
+    msg: "Would ensure pool {{ ceph_pool_spec.name }} exists with app {{ ceph_pool_spec.app }}."
+  when: ansible_check_mode
+  tags:
+    - ceph-cluster

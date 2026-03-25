@@ -1,0 +1,261 @@
+---
+title: Ceph Storage for OpenNebula
+description: Public Ansible workflow for provisioning the Ceph backend and OpenNebula datastores used by the OpenNebula CSI driver.
+---
+
+# Ceph storage for OpenNebula
+
+This runbook documents the public Ansible workflow for provisioning the Ceph backend used by an OpenNebula environment and preparing the datastore metadata expected by the OpenNebula CSI driver.
+
+This is a public alternative to the repo-local shell workflow under `.assh/scripts/setup-production-ceph-storage.sh`. Both are intended to produce the same infrastructure contract.
+
+## What this provisions
+
+- Ceph bootstrap and host enrollment
+- OSD registration for explicitly listed disks
+- RBD pools:
+  - `one-images`
+  - `one-system`
+  - `one-csi`
+- CephFS pools:
+  - `one-cephfs-meta`
+  - `one-cephfs-data`
+- CephFS filesystem: `one-cephfs`
+- CephFS subvolume group: `csi`
+- Ceph auth users:
+  - `client.opennebula`
+  - `client.opennebula-csi`
+  - `client.opennebula-csi-node`
+- OpenNebula datastores:
+  - `ceph-system`
+  - `ceph-images`
+  - `one-csi`
+  - `one-csi-cephfs`
+
+## What this does not do
+
+- migrate existing workloads
+- move current Talos root disks to Ceph
+- apply Kubernetes CSI secrets or Helm values
+- provision anything not explicitly listed in inventory
+
+## Required access and tools
+
+- Ansible on the operator workstation
+- SSH access to the Ceph and OpenNebula hosts
+- `cephadm` available on the bootstrap host
+- OpenNebula CLI on the frontend
+- `virsh` on each OpenNebula client host that will consume Ceph-backed datastores
+
+## Inventory model
+
+The example inventory lives at:
+
+- `deploy/ansible/opennebula-ceph/inventory/production.example.yml`
+
+Required groups:
+
+- `ceph_bootstrap`
+- `ceph_monitors`
+- `ceph_managers`
+- `ceph_mdss`
+- `ceph_osd_hosts`
+- `opennebula_frontend`
+- `opennebula_hypervisors`
+
+Each host should define:
+
+- `ansible_host`
+- `ceph_public_ip`
+- `ceph_osd_devices`
+
+Example:
+
+```yaml
+ceph_bootstrap:
+  hosts:
+    prod-fe-01:
+      ansible_host: 10.10.0.10
+      ceph_public_ip: 10.10.0.10
+      ceph_osd_devices:
+        - /dev/vdb
+```
+
+## Variable reference
+
+Public operator variables are defined in:
+
+- `deploy/ansible/opennebula-ceph/group_vars/all.yml`
+
+Important variables:
+
+- `ceph_cluster_fsid`
+- `ceph_image`
+- `ceph_public_network`
+- `ceph_cluster_network`
+- `ceph_pool_size`
+- `ceph_pool_min_size`
+- `ceph_rbd_pools`
+- `cephfs_name`
+- `cephfs_metadata_pool`
+- `cephfs_data_pool`
+- `cephfs_root_path`
+- `cephfs_subvolume_group`
+- `ceph_client_monitors`
+- `ceph_use_conf`
+- `ceph_conf_path`
+- `opennebula_ceph_user_id`
+- `opennebula_csi_admin_user_id`
+- `opennebula_csi_node_user_id`
+- `opennebula_ceph_client_hosts`
+- `opennebula_ceph_bridge_list`
+- `opennebula_libvirt_secret_uuid`
+- `opennebula_datastores`
+- `opennebula_expected_local_root_sched_ds`
+
+## Safety contract
+
+This workflow is additive only.
+
+It enforces these rules:
+
+- current local-root Talos scheduling must remain unchanged
+- only declared OSD devices are consumed
+- CephFS uses dedicated CSI users instead of reusing the plain OpenNebula RBD user
+- conflicting libvirt secret UUIDs abort the run
+- existing datastores are not overwritten silently
+
+## Run the playbook
+
+Syntax check:
+
+```bash
+ansible-playbook \
+  -i deploy/ansible/opennebula-ceph/inventory/production.example.yml \
+  deploy/ansible/opennebula-ceph/site.yml \
+  --syntax-check
+```
+
+Dry run:
+
+```bash
+ansible-playbook \
+  -i deploy/ansible/opennebula-ceph/inventory/production.example.yml \
+  deploy/ansible/opennebula-ceph/site.yml \
+  --check --diff
+```
+
+Apply:
+
+```bash
+ansible-playbook \
+  -i deploy/ansible/opennebula-ceph/inventory/production.example.yml \
+  deploy/ansible/opennebula-ceph/site.yml
+```
+
+Tag-scoped runs:
+
+```bash
+ansible-playbook \
+  -i deploy/ansible/opennebula-ceph/inventory/production.example.yml \
+  deploy/ansible/opennebula-ceph/site.yml \
+  --tags ceph-auth
+```
+
+Supported tags:
+
+- `inventory`
+- `ceph-bootstrap`
+- `ceph-cluster`
+- `ceph-auth`
+- `opennebula-clients`
+- `opennebula-datastores`
+- `postcheck`
+
+## Resulting datastore contract
+
+The playbook creates the same datastore metadata contract as the shell workflow.
+
+`ceph-system`:
+
+- `TYPE = SYSTEM_DS`
+- `TM_MAD = ceph`
+- `DISK_TYPE = RBD`
+
+`ceph-images`:
+
+- `TYPE = IMAGE_DS`
+- `DS_MAD = ceph`
+- `TM_MAD = ceph`
+- `COMPATIBLE_SYS_DS = <resolved ceph-system id>`
+
+`one-csi`:
+
+- `TYPE = IMAGE_DS`
+- Ceph RBD backend for block-backed CSI volumes
+
+`one-csi-cephfs`:
+
+- `TYPE = FILE_DS`
+- `SPARKAI_CSI_SHARE_BACKEND = cephfs`
+- `SPARKAI_CSI_CEPHFS_FS_NAME = one-cephfs`
+- `SPARKAI_CSI_CEPHFS_ROOT_PATH = /volumes`
+- `SPARKAI_CSI_CEPHFS_SUBVOLUME_GROUP = csi`
+
+## CSI-facing notes
+
+This workflow prepares the Ceph backend for CSI, including the permissions needed for CephFS lifecycle operations such as expansion and snapshots.
+
+The required users are:
+
+- `client.opennebula`
+  - RBD image, system, and CSI block access
+- `client.opennebula-csi`
+  - CephFS controller-side lifecycle
+  - includes `mgr 'allow rw'`
+- `client.opennebula-csi-node`
+  - CephFS node-stage mounting
+
+Future CSI deployment should continue to follow the validated staging expectations:
+
+- do not reuse the plain RBD user for dynamic CephFS provisioning
+- ensure the monitor list in `one-csi-cephfs` is reachable from CSI pods
+- if you use `CEPH_CONF`, confirm the file exists in the CSI runtime
+
+## Troubleshooting
+
+Ceph bootstrap fails:
+
+- confirm the bootstrap host owns the configured monitor IP
+- confirm `cephadm` is installed
+- confirm the public and cluster networks match real host routing
+
+OSD addition fails:
+
+- confirm the device is actually unused
+- confirm the device is explicitly listed under `ceph_osd_devices`
+
+Libvirt secret setup fails:
+
+- confirm `virsh` exists on the target host
+- confirm the configured or generated UUID does not conflict with an existing unrelated secret
+- confirm the OpenNebula raw key was exported into the local artifact directory
+
+Datastore creation fails:
+
+- confirm OpenNebula CLI is present on the frontend
+- confirm the Talos base template still contains the expected local-root scheduling marker
+- confirm a datastore with the same name does not already exist with a different contract
+
+CephFS CSI later fails on snapshots or expansion:
+
+- confirm the controller user is `client.opennebula-csi`
+- confirm the user has `mgr 'allow rw'`
+- confirm the CephFS path and subvolume group match the storage class expectations
+
+## Related files
+
+- `deploy/ansible/opennebula-ceph/README.md`
+- `deploy/ansible/opennebula-ceph/site.yml`
+- `deploy/ansible/opennebula-ceph/group_vars/all.yml`
+- `.assh/scripts/setup-production-ceph-storage.sh`
