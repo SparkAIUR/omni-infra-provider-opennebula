@@ -3,7 +3,7 @@ entries:
   omni-infra-provider-opennebula:
   - apiVersion: v2
     appVersion: 0.1.0
-    created: "2026-03-20T20:40:08.414399601Z"
+    created: "2026-03-25T22:13:45.957428518Z"
     description: Omni infrastructure provider for OpenNebula
     digest: a2e328a80fde42d3f241c8ca614f944044578dfd980d1daf59cd53e13b08b604
     home: https://github.com/SparkAIUR/omni-infra-provider-opennebula
@@ -16,7 +16,7 @@ entries:
     version: 0.1.0
   - apiVersion: v2
     appVersion: 0.0.0-edge.c7b0eab
-    created: "2026-03-20T20:40:08.413688033Z"
+    created: "2026-03-25T22:13:45.957009647Z"
     description: Omni infrastructure provider for OpenNebula
     digest: 83fabee28c489cd96ececb5fbba0f7e3dccb7446541119e387cad2c61c38e741
     home: https://github.com/SparkAIUR/omni-infra-provider-opennebula
@@ -29,7 +29,7 @@ entries:
     version: 0.0.0-edge.c7b0eab
   - apiVersion: v2
     appVersion: 0.0.0-edge.7fe3baf
-    created: "2026-03-20T20:40:08.413013514Z"
+    created: "2026-03-25T22:13:45.956571402Z"
     description: Omni infrastructure provider for OpenNebula
     digest: 06ca68fbca8311015647137ded8cc5346835e4abcaffbbd7dc9df66c8b2df5fc
     home: https://github.com/SparkAIUR/omni-infra-provider-opennebula
@@ -42,7 +42,7 @@ entries:
     version: 0.0.0-edge.7fe3baf
   - apiVersion: v2
     appVersion: 0.0.0-edge.4b817e5
-    created: "2026-03-20T20:40:08.412210696Z"
+    created: "2026-03-25T22:13:45.955516727Z"
     description: Omni infrastructure provider for OpenNebula
     digest: 18c3069beb4a267c079225c6a191c84658c1d745511d6406d4e5fdcd09a4fb9a
     home: https://github.com/SparkAIUR/omni-infra-provider-opennebula
@@ -55,7 +55,7 @@ entries:
     version: 0.0.0-edge.4b817e5
   - apiVersion: v2
     appVersion: 0.0.0-edge.334c3a5
-    created: "2026-03-20T20:40:08.41149539Z"
+    created: "2026-03-25T22:13:45.954799401Z"
     description: Omni infrastructure provider for OpenNebula
     digest: 65e3a48a2e1d3eae31279ff84accd85280a47ab6c058b54a326974e993a78045
     home: https://github.com/SparkAIUR/omni-infra-provider-opennebula
@@ -68,7 +68,7 @@ entries:
     version: 0.0.0-edge.334c3a5
   - apiVersion: v2
     appVersion: 0.0.0-edge.205f073
-    created: "2026-03-20T20:40:08.410708311Z"
+    created: "2026-03-25T22:13:45.954374641Z"
     description: Omni infrastructure provider for OpenNebula
     digest: 2c61abff202d6328f02a0666190299ec1d6594755a7e9751dee18dbe58c03634
     home: https://github.com/SparkAIUR/omni-infra-provider-opennebula
@@ -79,4 +79,17 @@ entries:
     urls:
     - https://sparkaiur.github.io/omni-infra-provider-opennebula/charts/omni-infra-provider-opennebula-0.0.0-edge.205f073.tgz
     version: 0.0.0-edge.205f073
-generated: "2026-03-20T20:40:08.40981306Z"
+  - apiVersion: v2
+    appVersion: 0.0.0-edge.0353cb2
+    created: "2026-03-25T22:13:45.953949379Z"
+    description: Omni infrastructure provider for OpenNebula
+    digest: 8bbd3e79b7c753b6f023d2c8b088f545e2f1bc92906ccb63012537325e5cc9f1
+    home: https://github.com/SparkAIUR/omni-infra-provider-opennebula
+    name: omni-infra-provider-opennebula
+    sources:
+    - https://github.com/SparkAIUR/omni-infra-provider-opennebula
+    type: application
+    urls:
+    - https://sparkaiur.github.io/omni-infra-provider-opennebula/charts/omni-infra-provider-opennebula-0.0.0-edge.0353cb2.tgz
+    version: 0.0.0-edge.0353cb2
+generated: "2026-03-25T22:13:45.953329564Z"
